@@ -561,7 +561,7 @@ function CasesDashboard() {
                 <div className="section-header">
                   <span className="section-icon">👥</span>
                   <h4>Parties</h4>
-                  <span className="section-count">{selectedCase.parties.length}</span>
+
                 </div>
                 <div className="parties-grid">
                   {selectedCase.parties.map((party) => (
@@ -603,7 +603,7 @@ function CasesDashboard() {
                 <div className="section-header">
                   <span className="section-icon">⚡</span>
                   <h4>Charges</h4>
-                  <span className="section-count">{selectedCase.charges.length}</span>
+
                 </div>
                 <div className="charges-list">
                   {selectedCase.charges.map((charge) => (
@@ -630,19 +630,24 @@ function CasesDashboard() {
                 <div className="section-header">
                   <span className="section-icon">📅</span>
                   <h4>Court Calendar</h4>
-                  <span className="section-count">{selectedCase.calendar.length}</span>
+
                 </div>
-                <div className="calendar-timeline">
+                <div className="calendar-events">
                   {selectedCase.calendar.map((entry) => (
-                    <div key={entry.id} className="timeline-item">
-                      <div className="timeline-dot"></div>
-                      <div className="timeline-content">
-                        <div className="timeline-header">
-                          <span className="timeline-date">{formatDate(entry.hearing_date)}</span>
-                          <span className="timeline-time">{formatTime(entry.hearing_time)}</span>
+                    <div key={entry.id} className="calendar-item">
+                      <div className="calendar-date-box">
+                        <div className="calendar-month">{new Date(entry.hearing_date).toLocaleDateString('en-US', { month: 'short' })}</div>
+                        <div className="calendar-day">{new Date(entry.hearing_date).getDate()}</div>
+                        <div className="calendar-year">{new Date(entry.hearing_date).getFullYear()}</div>
+                      </div>
+                      <div className="calendar-details">
+                        <div className="calendar-event-type">{entry.event_type}</div>
+                        <div className="calendar-time-status">
+                          <span className="calendar-time">🕐 {formatTime(entry.hearing_time)}</span>
+                          <span className="calendar-result-badge">
+                            {entry.result || 'Scheduled'}
+                          </span>
                         </div>
-                        <div className="timeline-event">{entry.event_type}</div>
-                        <div className="timeline-result">{entry.result || 'Scheduled'}</div>
                       </div>
                     </div>
                   ))}
@@ -789,43 +794,51 @@ function CasesDashboard() {
         }
         
         .charge-card {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: white;
+          border: 2px solid #e0e0e0;
           border-radius: 10px;
           padding: 20px;
           display: flex;
           align-items: center;
           gap: 15px;
           box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-          transition: transform 0.3s;
+          transition: all 0.3s;
         }
         
         .charge-card:hover {
           transform: translateY(-2px);
-          box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+          box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+          border-color: #667eea;
         }
         
         .charge-count {
           font-size: 2.5em;
           font-weight: bold;
-          color: white;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
           min-width: 60px;
           text-align: center;
         }
         
         .charge-details {
           flex: 1;
-          color: white;
+          color: #333;
         }
         
         .charge-code {
           font-weight: bold;
           margin-bottom: 5px;
-          font-size: 1.1em;
+          font-size: 1.2em;
+          color: #2c5282;
         }
         
         .charge-desc {
-          font-size: 0.9em;
-          opacity: 0.95;
+          font-size: 1em;
+          line-height: 1.4;
+          color: #666;
+          font-weight: 500;
         }
         
         .hearings-grid {
@@ -835,6 +848,45 @@ function CasesDashboard() {
           margin-top: 20px;
         }
         
+        .grouped-hearings {
+          background: linear-gradient(135deg, #f6f9fc 0%, #e9ecef 100%);
+          border-radius: 12px;
+          padding: 25px;
+          margin-bottom: 30px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+          border: 1px solid rgba(102, 126, 234, 0.1);
+        }
+        
+        .grouped-hearings h3 {
+          color: #2c5282;
+          margin-bottom: 20px;
+          font-size: 1.4em;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding-bottom: 15px;
+          border-bottom: 2px solid rgba(102, 126, 234, 0.2);
+        }
+        
+        .past-hearings {
+          background: linear-gradient(135deg, #fafafa 0%, #f0f0f0 100%);
+          border-radius: 12px;
+          padding: 25px;
+          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+          border: 1px solid #e0e0e0;
+        }
+        
+        .past-hearings h3 {
+          color: #666;
+          margin-bottom: 20px;
+          font-size: 1.3em;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding-bottom: 15px;
+          border-bottom: 2px solid #e0e0e0;
+        }
+        
         .hearing-card {
           background: white;
           border: 1px solid #e0e0e0;
@@ -842,6 +894,16 @@ function CasesDashboard() {
           overflow: hidden;
           box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
           transition: all 0.3s;
+        }
+        
+        .hearing-card.upcoming {
+          border: 2px solid rgba(102, 126, 234, 0.3);
+          box-shadow: 0 3px 8px rgba(102, 126, 234, 0.15);
+        }
+        
+        .hearing-card.past {
+          opacity: 0.85;
+          border: 1px solid #d0d0d0;
         }
         
         .hearing-card:hover {
@@ -856,6 +918,14 @@ function CasesDashboard() {
           display: flex;
           justify-content: space-between;
           align-items: center;
+        }
+        
+        .hearing-card.upcoming .hearing-header {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .hearing-card.past .hearing-header {
+          background: linear-gradient(135deg, #868e96 0%, #6c757d 100%);
         }
         
         .hearing-date {
@@ -1133,6 +1203,28 @@ function CasesDashboard() {
         
         @keyframes spin {
           to { transform: rotate(360deg); }
+        }
+        
+        .day-group {
+          margin-bottom: 30px;
+        }
+        
+        .day-header {
+          font-size: 1.2em;
+          font-weight: 700;
+          color: #2c5282;
+          margin-bottom: 15px;
+          padding: 10px 15px;
+          background: linear-gradient(90deg, rgba(102, 126, 234, 0.1) 0%, transparent 100%);
+          border-left: 4px solid #667eea;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        
+        .day-header::before {
+          content: "📆";
+          font-size: 1.2em;
         }
         
         /* Redesigned Modal Header */
@@ -1427,6 +1519,28 @@ function CasesDashboard() {
         .calendar-time {
           font-size: 13px;
           color: #666;
+        }
+        
+        .calendar-result-badge {
+          font-size: 11px;
+          padding: 3px 8px;
+          border-radius: 12px;
+          background: #28a745;
+          color: white;
+          font-weight: 600;
+        }
+        
+        .calendar-result-badge.scheduled {
+          background: #ffc107;
+          color: #333;
+        }
+        
+        .calendar-result-badge.completed {
+          background: #28a745;
+        }
+        
+        .calendar-result-badge.continued {
+          background: #17a2b8;
         }
         
         .calendar-result-badge {
