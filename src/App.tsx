@@ -13,13 +13,41 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AppContent() {
-  // Skip authentication check - go directly to dashboard
+  const { isAuthenticated, checkAuth } = useAuth();
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    checkAuth().finally(() => setLoading(false));
+  }, [checkAuth]);
+
+  if (loading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+      }}>
+        <div style={{ color: 'white', fontSize: '20px' }}>Loading...</div>
+      </div>
+    );
+  }
+
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/cases" element={<CasesDashboard />} />
-      <Route path="/" element={<Navigate to="/cases" />} />
+      <Route path="/login" element={
+        isAuthenticated ? <Navigate to="/cases" /> : <Login />
+      } />
+      <Route path="/dashboard" element={
+        <PrivateRoute><Dashboard /></PrivateRoute>
+      } />
+      <Route path="/cases" element={
+        <PrivateRoute><CasesDashboard /></PrivateRoute>
+      } />
+      <Route path="/" element={
+        isAuthenticated ? <Navigate to="/cases" /> : <Navigate to="/login" />
+      } />
     </Routes>
   );
 }

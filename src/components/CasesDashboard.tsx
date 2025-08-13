@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import ScrapingProgress from './ScrapingProgress';
 import './Dashboard.css';
 
@@ -108,6 +110,8 @@ interface Statistics {
 }
 
 function CasesDashboard() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [cases, setCases] = useState<CaseSummary[]>([]);
   const [selectedCase, setSelectedCase] = useState<CaseDetail | null>(null);
   const [statistics, setStatistics] = useState<Statistics | null>(null);
@@ -115,6 +119,11 @@ function CasesDashboard() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'cases' | 'hearings' | 'statistics'>('overview');
   const [scrapingStatus, setScrapingStatus] = useState('idle');
+  
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
 
   useEffect(() => {
     loadData();
@@ -543,6 +552,12 @@ function CasesDashboard() {
       <header className="dashboard-header">
         <h1>⚖️ Justice Watch - Court Case Monitor</h1>
         <div className="header-actions">
+          <div className="user-info">
+            <span className="user-name">👤 {user?.name || user?.email}</span>
+            <button onClick={handleLogout} className="logout-btn">
+              Logout
+            </button>
+          </div>
           <button 
             onClick={handleStartScraping}
             disabled={scrapingStatus === 'running'}
@@ -1434,6 +1449,41 @@ function CasesDashboard() {
         
         .refresh-btn:hover {
           background: #38a169;
+        }
+        
+        /* User Info and Logout */
+        .user-info {
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          margin-right: 20px;
+        }
+        
+        .user-name {
+          color: #2c5282;
+          font-weight: 600;
+          font-size: 14px;
+          padding: 8px 12px;
+          background: rgba(102, 126, 234, 0.1);
+          border-radius: 20px;
+        }
+        
+        .logout-btn {
+          padding: 8px 16px;
+          background: #dc3545;
+          color: white;
+          border: none;
+          border-radius: 6px;
+          font-weight: 600;
+          font-size: 14px;
+          cursor: pointer;
+          transition: all 0.3s;
+        }
+        
+        .logout-btn:hover {
+          background: #c82333;
+          transform: translateY(-1px);
+          box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
         }
         
         /* Export Buttons */
