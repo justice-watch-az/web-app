@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Build output
+dist/
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+cookies.txt
+exported_*.csv
+exported_*.json
+
+# Docker volumes
+data/
+postgres-data/
+redis-data/
