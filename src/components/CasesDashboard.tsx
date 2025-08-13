@@ -164,6 +164,334 @@ function CasesDashboard() {
     }
   };
 
+  const handleExportCSV = async () => {
+    try {
+      // First, fetch complete case details for all cases
+      console.log('Starting CSV export...');
+      const detailedCases = [];
+      
+      for (const caseItem of cases) {
+        try {
+          const response = await fetch(`/api/cases/${caseItem.case_number}`);
+          if (response.ok) {
+            const fullCase = await response.json();
+            // Flatten the case data for CSV
+            const flatCase = {
+              case_number: fullCase.case_number,
+              court_name: fullCase.court_name,
+              case_title: fullCase.case_title,
+              case_type: fullCase.case_type,
+              case_status: fullCase.case_status,
+              judge: fullCase.judge,
+              filing_date: fullCase.filing_date,
+              // Add party information
+              plaintiffs: fullCase.parties?.filter((p: any) => p.party_type === 'plaintiff').map((p: any) => p.party_name).join('; '),
+              defendants: fullCase.parties?.filter((p: any) => p.party_type === 'defendant').map((p: any) => p.party_name).join('; '),
+              attorneys: fullCase.parties?.map((p: any) => p.attorney).filter(Boolean).join('; '),
+              // Add charges
+              charges: fullCase.charges?.map((c: any) => `${c.ars_code}: ${c.description}`).join('; '),
+              charge_count: fullCase.charges?.length || 0,
+              // Add hearing info
+              next_hearing: fullCase.calendar?.filter((h: any) => new Date(h.hearing_date) > new Date())[0]?.hearing_date || '',
+              next_hearing_type: fullCase.calendar?.filter((h: any) => new Date(h.hearing_date) > new Date())[0]?.event_type || '',
+              total_hearings: fullCase.calendar?.length || 0
+            };
+            detailedCases.push(flatCase);
+          } else {
+            // If we can't get details, use basic info
+            detailedCases.push(caseItem);
+          }
+        } catch (err) {
+          console.error(`Error fetching case ${caseItem.case_number}:`, err);
+          detailedCases.push(caseItem);
+        }
+      }
+      
+      // Now export the detailed data
+      const response = await fetch('/api/export/csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: detailedCases })
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `court_cases_detailed_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        console.log('CSV export completed');
+      } else {
+        console.error('Export response not ok:', response.status);
+      }
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      alert('Failed to export CSV. Check console for details.');
+    }
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      console.log('Starting PDF export...');
+      const detailedCases = [];
+      
+      // Fetch complete case details
+      for (const caseItem of cases) {
+        try {
+          const response = await fetch(`/api/cases/${caseItem.case_number}`);
+          if (response.ok) {
+            const fullCase = await response.json();
+            detailedCases.push(fullCase);
+          } else {
+            detailedCases.push(caseItem);
+          }
+        } catch (err) {
+          console.error(`Error fetching case ${caseItem.case_number}:`, err);
+          detailedCases.push(caseItem);
+        }
+      }
+      
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        const html = `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Court Cases Detailed Report</title>
+              <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { 
+                  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                  padding: 20px; 
+                  color: #333;
+                  line-height: 1.6;
+                }
+                .header { 
+                  display: flex; 
+                  justify-content: space-between; 
+                  align-items: center;
+                  margin-bottom: 30px;
+                  padding-bottom: 20px;
+                  border-bottom: 3px solid #2c5282;
+                }
+                h1 { 
+                  color: #2c5282; 
+                  font-size: 28px;
+                }
+                .date { 
+                  color: #666; 
+                  font-size: 14px;
+                }
+                .summary {
+                  background: #f0f7ff;
+                  padding: 15px;
+                  border-radius: 8px;
+                  margin-bottom: 30px;
+                  border-left: 4px solid #2c5282;
+                }
+                .case-card {
+                  background: white;
+                  border: 1px solid #ddd;
+                  border-radius: 8px;
+                  padding: 20px;
+                  margin-bottom: 25px;
+                  page-break-inside: avoid;
+                  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                }
+                .case-header {
+                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  color: white;
+                  padding: 15px;
+                  margin: -20px -20px 20px -20px;
+                  border-radius: 8px 8px 0 0;
+                }
+                .case-number {
+                  font-size: 20px;
+                  font-weight: bold;
+                  margin-bottom: 5px;
+                }
+                .case-title {
+                  font-size: 14px;
+                  opacity: 0.95;
+                }
+                .section {
+                  margin-bottom: 20px;
+                }
+                .section-title {
+                  font-size: 16px;
+                  font-weight: bold;
+                  color: #2c5282;
+                  margin-bottom: 10px;
+                  padding-bottom: 5px;
+                  border-bottom: 2px solid #e0e0e0;
+                }
+                .info-grid {
+                  display: grid;
+                  grid-template-columns: 150px 1fr;
+                  gap: 10px;
+                }
+                .info-label {
+                  font-weight: 600;
+                  color: #666;
+                }
+                .info-value {
+                  color: #333;
+                }
+                .party-item, .charge-item, .hearing-item {
+                  background: #f8f9fa;
+                  padding: 10px;
+                  margin-bottom: 10px;
+                  border-radius: 4px;
+                  border-left: 3px solid #667eea;
+                }
+                .party-type {
+                  font-weight: bold;
+                  color: #2c5282;
+                  text-transform: uppercase;
+                  font-size: 11px;
+                  margin-bottom: 5px;
+                }
+                .charge-code {
+                  background: #e74c3c;
+                  color: white;
+                  padding: 2px 8px;
+                  border-radius: 4px;
+                  font-size: 12px;
+                  font-weight: bold;
+                  display: inline-block;
+                  margin-bottom: 5px;
+                }
+                .no-data {
+                  color: #999;
+                  font-style: italic;
+                }
+                @media print {
+                  .no-print { display: none; }
+                  .case-card { page-break-inside: avoid; }
+                  body { padding: 10px; }
+                }
+                .print-btn {
+                  padding: 12px 30px;
+                  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                  color: white;
+                  border: none;
+                  border-radius: 8px;
+                  cursor: pointer;
+                  font-size: 16px;
+                  font-weight: bold;
+                  margin: 20px auto;
+                  display: block;
+                  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                }
+                .print-btn:hover {
+                  opacity: 0.9;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="header">
+                <h1>⚖️ Court Cases Detailed Report</h1>
+                <div class="date">Generated: ${new Date().toLocaleString()}</div>
+              </div>
+              
+              <div class="summary">
+                <strong>Report Summary:</strong><br>
+                Total Cases: ${detailedCases.length}<br>
+                Courts Involved: ${[...new Set(detailedCases.map(c => c.court_name))].length}<br>
+                Date Range: ${detailedCases.length > 0 ? `${new Date(Math.min(...detailedCases.map(c => new Date(c.filing_date).getTime()))).toLocaleDateString()} - ${new Date(Math.max(...detailedCases.map(c => new Date(c.filing_date).getTime()))).toLocaleDateString()}` : 'N/A'}
+              </div>
+              
+              ${detailedCases.map(c => `
+                <div class="case-card">
+                  <div class="case-header">
+                    <div class="case-number">${c.case_number}</div>
+                    <div class="case-title">${c.case_title || 'No title'}</div>
+                  </div>
+                  
+                  <div class="section">
+                    <div class="section-title">📋 Case Information</div>
+                    <div class="info-grid">
+                      <div class="info-label">Court:</div>
+                      <div class="info-value">${c.court_name}</div>
+                      <div class="info-label">Case Type:</div>
+                      <div class="info-value">${c.case_type || 'N/A'}</div>
+                      <div class="info-label">Status:</div>
+                      <div class="info-value">${c.case_status || 'N/A'}</div>
+                      <div class="info-label">Judge:</div>
+                      <div class="info-value">${c.judge || 'Not assigned'}</div>
+                      <div class="info-label">Filing Date:</div>
+                      <div class="info-value">${c.filing_date ? new Date(c.filing_date).toLocaleDateString() : 'N/A'}</div>
+                    </div>
+                  </div>
+                  
+                  ${c.parties && c.parties.length > 0 ? `
+                    <div class="section">
+                      <div class="section-title">👥 Parties (${c.parties.length})</div>
+                      ${c.parties.map(p => `
+                        <div class="party-item">
+                          <div class="party-type">${p.party_type}</div>
+                          <strong>${p.party_name}</strong><br>
+                          ${p.relationship ? `Relationship: ${p.relationship}<br>` : ''}
+                          ${p.attorney ? `Attorney: ${p.attorney}` : '<span class="no-data">Pro Se</span>'}
+                        </div>
+                      `).join('')}
+                    </div>
+                  ` : '<div class="section"><div class="section-title">👥 Parties</div><div class="no-data">No party information available</div></div>'}
+                  
+                  ${c.charges && c.charges.length > 0 ? `
+                    <div class="section">
+                      <div class="section-title">⚡ Charges (${c.charges.length})</div>
+                      ${c.charges.map(ch => `
+                        <div class="charge-item">
+                          <span class="charge-code">${ch.ars_code}</span><br>
+                          <strong>${ch.description}</strong><br>
+                          Party: ${ch.party_name || 'N/A'}<br>
+                          Crime Date: ${ch.crime_date ? new Date(ch.crime_date).toLocaleDateString() : 'N/A'}<br>
+                          Disposition: ${ch.disposition || 'Pending'}
+                        </div>
+                      `).join('')}
+                    </div>
+                  ` : '<div class="section"><div class="section-title">⚡ Charges</div><div class="no-data">No charges recorded</div></div>'}
+                  
+                  ${c.calendar && c.calendar.length > 0 ? `
+                    <div class="section">
+                      <div class="section-title">📅 Court Calendar (${c.calendar.length} events)</div>
+                      ${c.calendar.map(h => `
+                        <div class="hearing-item">
+                          <strong>${h.event_type}</strong><br>
+                          Date: ${new Date(h.hearing_date).toLocaleDateString()}<br>
+                          Time: ${h.hearing_time || 'N/A'}<br>
+                          Result: ${h.result || 'Scheduled'}
+                        </div>
+                      `).join('')}
+                    </div>
+                  ` : '<div class="section"><div class="section-title">📅 Court Calendar</div><div class="no-data">No hearings scheduled</div></div>'}
+                </div>
+              `).join('')}
+              
+              <div class="no-print">
+                <button class="print-btn" onclick="window.print()">🖨️ Print to PDF</button>
+                <p style="text-align: center; color: #666; margin-top: 10px;">
+                  Use Ctrl+P (or Cmd+P on Mac) to save as PDF
+                </p>
+              </div>
+            </body>
+          </html>
+        `;
+        printWindow.document.write(html);
+        printWindow.document.close();
+        console.log('PDF export window opened');
+      }
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. Check console for details.');
+    }
+  };
+
   const handleStartScraping = async () => {
     try {
       setScrapingStatus('running');
@@ -317,6 +645,16 @@ function CasesDashboard() {
 
       {activeTab === 'cases' && (
         <div className="cases-section">
+          <div className="export-buttons">
+            <button onClick={handleExportCSV} className="export-btn csv">
+              <span className="export-icon">📊</span>
+              Export CSV
+            </button>
+            <button onClick={handleExportPDF} className="export-btn pdf">
+              <span className="export-icon">📄</span>
+              Export PDF
+            </button>
+          </div>
           <div className="cases-table">
             <table>
               <thead>
@@ -1096,6 +1434,55 @@ function CasesDashboard() {
         
         .refresh-btn:hover {
           background: #38a169;
+        }
+        
+        /* Export Buttons */
+        .export-buttons {
+          display: flex;
+          gap: 15px;
+          margin-bottom: 20px;
+          padding: 15px;
+          background: linear-gradient(135deg, #f6f9fc 0%, #e9ecef 100%);
+          border-radius: 10px;
+          border: 1px solid #e0e0e0;
+        }
+        
+        .export-btn {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 12px 24px;
+          border: none;
+          border-radius: 8px;
+          font-weight: 600;
+          font-size: 14px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .export-btn.csv {
+          background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+          color: white;
+        }
+        
+        .export-btn.csv:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(72, 187, 120, 0.3);
+        }
+        
+        .export-btn.pdf {
+          background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
+          color: white;
+        }
+        
+        .export-btn.pdf:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(237, 137, 54, 0.3);
+        }
+        
+        .export-icon {
+          font-size: 18px;
         }
         
         /* Enhanced Scrape Button Styles */
