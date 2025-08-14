@@ -54,17 +54,141 @@ class SupabasePool {
     
     // Handle SELECT queries
     if (mappedSql.toLowerCase().startsWith('select')) {
-      // Handle SELECT * FROM cases queries
-      if (mappedSql.includes('FROM cases') || mappedSql.includes('FROM "cases"')) {
-        const { data, error } = await supabase
-          .from('cases')
-          .select('*');
+      // Handle SELECT * FROM cases queries with any column specification
+      if (mappedSql.toLowerCase().includes('from cases')) {
+        logger.info('Handling cases SELECT query');
+        
+        // Check for specific query patterns
+        let query = supabase.from('cases');
+        
+        // Check for LIMIT clause
+        const limitMatch = mappedSql.match(/LIMIT\s+(\d+)/i);
+        const limit = limitMatch ? parseInt(limitMatch[1]) : null;
+        
+        // Check for WHERE clauses
+        const whereMatch = mappedSql.match(/WHERE\s+(.+?)(?:\s+ORDER|\s+LIMIT|$)/i);
+        
+        // Check for ORDER BY
+        const orderMatch = mappedSql.match(/ORDER BY\s+([^\s]+)(?:\s+(ASC|DESC))?/i);
+        
+        // For stats queries with COUNT
+        if (mappedSql.includes('COUNT(*)')) {
+          logger.info('Handling COUNT query for cases');
+          const { count, error } = await supabase
+            .from('cases')
+            .select('*', { count: 'exact', head: true });
+          
+          if (error) {
+            logger.warn('Count query error:', error.message);
+            return { rows: [{ total_cases: '0', total_courts: '0', upcoming_hearings: '0' }] };
+          }
+          
+          // If it's the summary stats query
+          if (mappedSql.includes('COUNT(DISTINCT court_name)')) {
+            const { data: courtData } = await supabase
+              .from('cases')
+              .select('court_name');
+            
+            const uniqueCourts = new Set(courtData?.map(c => c.court_name) || []);
+            
+            const { data: upcomingData } = await supabase
+              .from('cases')
+              .select('next_hearing')
+              .gte('next_hearing', new Date().toISOString().split('T')[0]);
+            
+            return { 
+              rows: [{
+                total_cases: count?.toString() || '0',
+                total_courts: uniqueCourts.size.toString(),
+                upcoming_hearings: (upcomingData?.length || 0).toString()
+              }]
+            };
+          }
+          
+          return { rows: [{ count: count?.toString() || '0' }] };
+        }
+        
+        // For court distribution query
+        if (mappedSql.includes('GROUP BY court_name')) {
+          logger.info('Handling court distribution query');
+          const { data, error } = await supabase
+            .from('cases')
+            .select('court_name');
+          
+          if (error) {
+            logger.warn('Court distribution query error:', error.message);
+            return { rows: [] };
+          }
+          
+          // Group by court_name manually
+          const courtCounts = {};
+          (data || []).forEach(row => {
+            const court = row.court_name || 'Unknown';
+            courtCounts[court] = (courtCounts[court] || 0) + 1;
+          });
+          
+          const result = Object.entries(courtCounts)
+            .map(([court_name, case_count]) => ({
+              court_name,
+              case_count: case_count.toString()
+            }))
+            .sort((a, b) => parseInt(b.case_count) - parseInt(a.case_count));
+          
+          return { rows: result };
+        }
+        
+        // For upcoming hearings query
+        if (whereMatch && whereMatch[1].includes('next_hearing')) {
+          logger.info('Handling upcoming hearings query');
+          const { data, error } = await supabase
+            .from('cases')
+            .select('case_number, case_title, court_name, judge, next_hearing, location')
+            .gte('next_hearing', new Date().toISOString().split('T')[0])
+            .order('next_hearing', { ascending: true })
+            .limit(limit || 50);
+          
+          if (error) {
+            logger.warn('Upcoming hearings query error:', error.message);
+            return { rows: [] };
+          }
+          
+          return { rows: data || [] };
+        }
+        
+        // Default SELECT query for cases list
+        logger.info('Handling general cases SELECT query');
+        let selectQuery = query.select('*');
+        
+        // Apply ordering
+        if (orderMatch) {
+          const [, column, direction] = orderMatch;
+          selectQuery = selectQuery.order(column, { 
+            ascending: direction?.toUpperCase() !== 'DESC' 
+          });
+        } else {
+          // Default ordering
+          selectQuery = selectQuery.order('updated_at', { ascending: false });
+        }
+        
+        // Apply limit
+        if (limit) {
+          selectQuery = selectQuery.limit(limit);
+        }
+        
+        const { data, error } = await selectQuery;
         
         if (error) {
-          logger.warn('Select query error:', error.message);
+          logger.warn('General select query error:', error.message);
           return { rows: [] };
         }
-        return { rows: data || [] };
+        
+        // Map the data to match expected column names from SQL query
+        const mappedData = (data || []).map(row => ({
+          ...row,
+          case_status: row.status  // Map 'status' to 'case_status' as expected by the query
+        }));
+        
+        return { rows: mappedData };
       }
       
       // Handle SELECT FROM users queries (for authentication)

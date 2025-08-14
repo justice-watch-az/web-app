@@ -2,7 +2,7 @@
 version: "2.0"
 services:
   web:
-    image: arealicehole/justice-watch:aio.09
+    image: arealicehole/justice-watch:aio.10
     expose:
       - port: 3001
         as: 80
