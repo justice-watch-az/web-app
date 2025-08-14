@@ -3,17 +3,14 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 // const morgan = require('morgan'); // Not installed
-const session = require('express-session');
 const rateLimit = require('express-rate-limit');
 const logger = require('./utils/logger');
-const authRoutes = require('./routes/auth');
 const apiRoutes = require('./routes/api');
 const scrapingRoutes = require('./routes/scraping');
 const casesRoutes = require('./routes/cases');
 const errorHandler = require('./middleware/errorHandler');
 const { initDatabase } = require('./database');
 const { initQueue } = require('./queue');
-const { initAdminUser } = require('./utils/init-admin');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -70,17 +67,6 @@ app.use('/api/', limiter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Session configuration
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'your-secret-key-change-in-production',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  }
-}));
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
@@ -93,10 +79,9 @@ app.get('/health', (req, res) => {
 });
 
 // Routes
-app.use('/api/auth', authRoutes);
-app.use('/api', apiRoutes);  // Removed authentication
-app.use('/api/scraping', scrapingRoutes);  // Removed authentication
-app.use('/api/cases', casesRoutes);  // No auth
+app.use('/api', apiRoutes);
+app.use('/api/scraping', scrapingRoutes);
+app.use('/api/cases', casesRoutes);
 
 // Serve React app for all other routes in production
 if (process.env.NODE_ENV === 'production') {
@@ -113,9 +98,6 @@ async function startServer() {
   try {
     await initDatabase();
     
-    // Create admin user if it doesn't exist
-    const { pool } = require('./database');
-    await initAdminUser(pool);
     
     await initQueue(io);  // Pass io instance to queue
     

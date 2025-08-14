@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 import Papa from 'papaparse';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -40,19 +38,11 @@ interface Statistics {
 }
 
 function CasesDashboard() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const [cases, setCases] = useState<CaseSummary[]>([]);
   const [selectedCase, setSelectedCase] = useState<CaseSummary | null>(null);
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [loading, setLoading] = useState(true);
-  const [scrapingStatus, setScrapingStatus] = useState('idle');
   const [hideOldCases, setHideOldCases] = useState(false);
-  
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
 
   useEffect(() => {
     loadData();
@@ -84,35 +74,6 @@ function CasesDashboard() {
     }
   };
 
-  const handleStartScraping = async () => {
-    try {
-      setScrapingStatus('running');
-      const response = await fetch('/api/scraping/arraignments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({
-          courtId: 'all',
-          dateRangeDays: 30
-        })
-      });
-      
-      if (response.ok) {
-        setTimeout(() => {
-          setScrapingStatus('completed');
-          loadData(); // Refresh data
-          setTimeout(() => setScrapingStatus('idle'), 3000);
-        }, 5000);
-      } else {
-        setScrapingStatus('idle');
-      }
-    } catch (error) {
-      console.error('Error starting scraping:', error);
-      setScrapingStatus('idle');
-    }
-  };
 
   const loadCaseDetails = async (caseData: CaseSummary) => {
     try {
@@ -344,11 +305,7 @@ function CasesDashboard() {
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
-        <h1>Justice Watch - Arraignment Monitor</h1>
-        <div className="header-actions">
-          <span>Welcome, {user?.name || user?.email}</span>
-          <button onClick={handleLogout} className="logout-btn">Logout</button>
-        </div>
+        <h1>Justice Watch AZ - Maricopa County Arraignment Monitor</h1>
       </header>
 
       {/* Stats Bar */}
@@ -371,15 +328,6 @@ function CasesDashboard() {
 
       {/* Action Bar */}
       <div className="action-bar">
-        <button 
-          onClick={handleStartScraping} 
-          disabled={scrapingStatus === 'running'}
-          className={`scraping-btn ${scrapingStatus}`}
-        >
-          {scrapingStatus === 'running' ? '⏳ Scraping...' : 
-           scrapingStatus === 'completed' ? '✓ Complete!' : 
-           '🔍 Start Scraping'}
-        </button>
         <button onClick={loadData} className="refresh-btn">
           🔄 Refresh
         </button>
