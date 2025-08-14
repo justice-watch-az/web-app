@@ -51,25 +51,12 @@ app.use(helmet({
     },
   },
 }));
+// Allow all origins - fix CORS issues
 app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl)
-    if (!origin) return callback(null, true);
-    
-    // Allow localhost and Akash domains
-    const allowedPatterns = [
-      /^http:\/\/localhost(:\d+)?$/,
-      /^https?:\/\/.*\.akash\.win$/,
-      /^https?:\/\/.*\.ingress\.akash\.win$/
-    ];
-    
-    if (allowedPatterns.some(pattern => pattern.test(origin))) {
-      callback(null, true);
-    } else {
-      callback(null, true); // Allow all for now
-    }
-  },
-  credentials: true
+  origin: true, // Allow all origins
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Rate limiting
