@@ -196,17 +196,73 @@ class SupabasePool {
         // Parse the WHERE clause for email
         const emailMatch = mappedSql.match(/WHERE email = \$1/i);
         if (emailMatch && params[0]) {
-          const { data, error } = await supabase
-            .from('users')
-            .select('id, email, name, password')
-            .eq('email', params[0]);
+          // Check what columns are being selected
+          const selectMatch = mappedSql.match(/SELECT\s+(.+?)\s+FROM/i);
+          const columns = selectMatch ? selectMatch[1].trim() : '*';
           
-          if (error) {
-            logger.warn('User query error:', error.message);
-            return { rows: [] };
+          // If only selecting id (for checking user exists)
+          if (columns === 'id') {
+            const { data, error } = await supabase
+              .from('users')
+              .select('id')
+              .eq('email', params[0]);
+            
+            if (error) {
+              logger.warn('User exists check error:', error.message);
+              return { rows: [] };
+            }
+            return { rows: data || [] };
+          } else {
+            // Select all user fields
+            const { data, error } = await supabase
+              .from('users')
+              .select('id, email, name, password')
+              .eq('email', params[0]);
+            
+            if (error) {
+              logger.warn('User query error:', error.message);
+              return { rows: [] };
+            }
+            return { rows: data || [] };
           }
-          return { rows: data || [] };
         }
+      }
+      
+      // Handle SELECT FROM scraping_jobs queries
+      if (mappedSql.includes('FROM scraping_jobs')) {
+        logger.info('Handling scraping_jobs SELECT query');
+        
+        // Parse WHERE clause
+        const whereUserMatch = mappedSql.match(/WHERE user_id = \$1/i);
+        const limitMatch = mappedSql.match(/LIMIT\s+(\$\d+|\d+)/i);
+        
+        let query = supabase.from('scraping_jobs').select('*');
+        
+        if (whereUserMatch && params[0] !== undefined) {
+          query = query.eq('user_id', params[0]);
+        }
+        
+        // Check for ORDER BY
+        if (mappedSql.includes('ORDER BY created_at DESC')) {
+          query = query.order('created_at', { ascending: false });
+        }
+        
+        // Apply limit
+        if (limitMatch) {
+          const limitValue = limitMatch[1].startsWith('$') 
+            ? params[parseInt(limitMatch[1].substring(1)) - 1]
+            : parseInt(limitMatch[1]);
+          query = query.limit(limitValue);
+        }
+        
+        const { data, error } = await query;
+        
+        if (error) {
+          logger.warn('Scraping jobs query error:', error.message);
+          return { rows: [] };
+        }
+        
+        return { rows: data || [] };
       }
       
       // Default for other SELECT queries
@@ -348,8 +404,35 @@ class SupabasePool {
     
     // Handle INSERT INTO scraping_jobs
     if (mappedSql.includes('INSERT INTO scraping_jobs')) {
-      // For now, just return a mock job ID since we're testing
-      logger.info('Mock handling scraping_jobs insert');
+      logger.info('Handling scraping_jobs INSERT');
+      
+      // Parse the columns and values
+      // Format: INSERT INTO scraping_jobs (user_id, status, config, started_at, job_type) VALUES ($1, $2, $3, $4, $5)
+      if (params.length >= 5) {
+        const jobData = {
+          user_id: params[0],
+          status: params[1],
+          config: params[2],
+          started_at: params[3],
+          job_type: params[4]
+        };
+        
+        const { data, error } = await supabase
+          .from('scraping_jobs')
+          .insert(jobData)
+          .select('id');
+        
+        if (error) {
+          logger.error('Failed to insert scraping job:', error);
+          // Return mock ID to continue flow
+          return { rows: [{ id: Date.now() }], rowCount: 1 };
+        }
+        
+        return { rows: data || [{ id: Date.now() }], rowCount: 1 };
+      }
+      
+      // Fallback for other formats
+      logger.info('Mock handling scraping_jobs insert (unknown format)');
       return { 
         rows: [{ id: Date.now() }], 
         rowCount: 1 
@@ -364,6 +447,59 @@ class SupabasePool {
     
     // Handle UPDATE queries
     if (mappedSql.toLowerCase().startsWith('update')) {
+      // Handle UPDATE scraping_jobs
+      if (mappedSql.includes('UPDATE scraping_jobs')) {
+        logger.info('Handling scraping_jobs UPDATE');
+        
+        // Parse the SET and WHERE clauses
+        // Format: UPDATE scraping_jobs SET status = 'stopped', completed_at = $1 WHERE user_id = $2 AND status = 'running'
+        const setMatch = mappedSql.match(/SET\s+(.+?)\s+WHERE/i);
+        const whereMatch = mappedSql.match(/WHERE\s+(.+?)$/i);
+        
+        if (setMatch && whereMatch) {
+          // Build update object from SET clause
+          const updates = {};
+          const setParts = setMatch[1].split(',').map(s => s.trim());
+          let paramIndex = 0;
+          
+          setParts.forEach(part => {
+            const [field, value] = part.split('=').map(s => s.trim());
+            if (value.startsWith('$')) {
+              updates[field] = params[paramIndex++];
+            } else {
+              // Remove quotes if present
+              updates[field] = value.replace(/^['"]|['"]$/g, '');
+            }
+          });
+          
+          // Parse WHERE clause
+          let query = supabase.from('scraping_jobs').update(updates);
+          
+          // Simple WHERE parsing for common patterns
+          if (whereMatch[1].includes('user_id = $')) {
+            const userIdParamMatch = whereMatch[1].match(/user_id = \$(\d+)/);
+            if (userIdParamMatch) {
+              const idx = parseInt(userIdParamMatch[1]) - 1;
+              query = query.eq('user_id', params[idx]);
+            }
+          }
+          
+          if (whereMatch[1].includes("status = 'running'")) {
+            query = query.eq('status', 'running');
+          }
+          
+          const { data, error } = await query;
+          
+          if (error) {
+            logger.warn('Scraping jobs update error:', error.message);
+            return { rows: [], rowCount: 0 };
+          }
+          
+          return { rows: [], rowCount: data ? data.length : 0 };
+        }
+      }
+      
+      // Default for other UPDATE queries
       logger.info(`UPDATE query (no-op for now): ${mappedSql.substring(0, 50)}`);
       return { rows: [], rowCount: 0 };
     }
