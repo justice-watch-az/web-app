@@ -12,6 +12,11 @@ interface Case {
   filing_date: string;
   status: string;
   judge: string;
+  court_name?: string;
+  location?: string;
+  parties?: string;
+  docket_entries?: string;
+  events?: string;
 }
 
 interface Statistics {
@@ -36,6 +41,13 @@ function Dashboard() {
 
   useEffect(() => {
     loadData();
+    
+    // Poll for new data every 30 seconds when not scraping
+    const pollInterval = setInterval(() => {
+      if (scrapingStatus === 'idle') {
+        loadData();
+      }
+    }, 30000);
     
     // Connect to WebSocket
     const newSocket = io(window.location.origin, {
@@ -62,15 +74,18 @@ function Dashboard() {
       } else if (data.type === 'case_saved') {
         setScrapingProgress(`Saved: ${data.caseNumber}`);
       } else if (data.type === 'completed') {
-        setScrapingStatus('idle');
+        setScrapingStatus('completed');
         setScrapingProgress(data.message);
+        // Auto-refresh data immediately when scraping completes
+        loadData();
+        // Show success message for 5 seconds
         setTimeout(() => {
-          loadData();
+          setScrapingStatus('idle');
           setScrapingProgress('');
           setCourtsProcessed(0);
           setTotalCourts(0);
           setCasesFound(0);
-        }, 3000);
+        }, 5000);
       } else if (data.type === 'error') {
         setScrapingStatus('error');
         setScrapingProgress(`Error: ${data.message}`);
@@ -82,6 +97,7 @@ function Dashboard() {
     setSocket(newSocket);
     
     return () => {
+      clearInterval(pollInterval);
       newSocket.close();
     };
   }, []);
@@ -92,8 +108,20 @@ function Dashboard() {
         courtCaseService.getCases(),
         courtCaseService.getStatistics()
       ]);
+      // Log to debug
+      console.log('Loaded cases:', casesRes.data);
+      console.log('Loaded stats:', statsRes.data);
+      
       setCases(casesRes.data.cases || []);
       setStatistics(statsRes.data);
+      
+      // If we just completed scraping and got new data, show a notification
+      if (scrapingStatus === 'completed' && casesRes.data.cases?.length > 0) {
+        const newCasesCount = casesRes.data.cases.length - cases.length;
+        if (newCasesCount > 0) {
+          setScrapingProgress(`✓ Added ${newCasesCount} new cases to database!`);
+        }
+      }
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -225,10 +253,11 @@ function Dashboard() {
           <button 
             onClick={handleStartArraignmentScraping} 
             disabled={scrapingStatus === 'running'}
-            className="primary-btn arraignment-btn"
+            className={`primary-btn arraignment-btn ${scrapingStatus === 'completed' ? 'success' : ''}`}
             title="Scrapes ONLY 'Arraignment Hearing - Long Form' cases from all Maricopa County Justice Courts"
           >
-            {scrapingStatus === 'running' ? 'Scraping Arraignments...' : 'Start Scraping'}
+            {scrapingStatus === 'running' ? 'Scraping Arraignments...' : 
+             scrapingStatus === 'completed' ? '✓ Scraping Complete!' : 'Start Scraping'}
           </button>
           {scrapingStatus === 'running' && (
             <button 
@@ -238,6 +267,9 @@ function Dashboard() {
               Stop Scraping
             </button>
           )}
+          <button onClick={loadData} className="refresh-btn" title="Refresh data from database">
+            🔄 Refresh
+          </button>
           <button onClick={handleExportCSV}>Export CSV</button>
         </div>
         
@@ -267,6 +299,7 @@ function Dashboard() {
           <thead>
             <tr>
               <th>Case Number</th>
+              <th>Court</th>
               <th>Title</th>
               <th>Type</th>
               <th>Filing Date</th>
@@ -277,17 +310,20 @@ function Dashboard() {
           <tbody>
             {cases.length === 0 ? (
               <tr>
-                <td colSpan={6} className="no-data">No cases found</td>
+                <td colSpan={7} className="no-data">
+                  {scrapingStatus === 'idle' ? 'No cases found. Click "Start Scraping" to fetch arraignment cases.' : 'Loading cases...'}
+                </td>
               </tr>
             ) : (
               cases.map((case_) => (
                 <tr key={case_.id}>
                   <td>{case_.case_number}</td>
-                  <td>{case_.case_title}</td>
-                  <td>{case_.case_type}</td>
-                  <td>{new Date(case_.filing_date).toLocaleDateString()}</td>
-                  <td>{case_.status}</td>
-                  <td>{case_.judge}</td>
+                  <td>{case_.court_name?.replace(' Justice Court', '') || 'Unknown'}</td>
+                  <td>{case_.case_title || 'No Title'}</td>
+                  <td>{case_.case_type || 'Criminal'}</td>
+                  <td>{case_.filing_date ? new Date(case_.filing_date).toLocaleDateString() : 'N/A'}</td>
+                  <td>{case_.status || 'Active'}</td>
+                  <td>{case_.judge || 'N/A'}</td>
                 </tr>
               ))
             )}
