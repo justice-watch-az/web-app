@@ -620,40 +620,74 @@ function CasesDashboard() {
               <p className="stat-number">{statistics.summary.total_cases}</p>
             </div>
             <div className="stat-card">
-              <h3>Total Charges</h3>
-              <p className="stat-number">{statistics.summary.total_charges}</p>
+              <h3>Courts Active</h3>
+              <p className="stat-number">{statistics.summary.total_courts}</p>
             </div>
             <div className="stat-card">
               <h3>Upcoming Hearings</h3>
               <p className="stat-number">{statistics.summary.upcoming_hearings}</p>
             </div>
-            <div className="stat-card">
-              <h3>Courts Active</h3>
-              <p className="stat-number">{statistics.summary.total_courts}</p>
-            </div>
-            <div className="stat-card">
-              <h3>Charge Types</h3>
-              <p className="stat-number">{statistics.summary.unique_charge_types}</p>
-            </div>
-            <div className="stat-card">
-              <h3>Pending Charges</h3>
-              <p className="stat-number">{statistics.summary.pending_charges}</p>
+          </div>
+
+          {/* Court Rankings by Case Count */}
+          <div className="court-rankings">
+            <h3>📊 Courts Ranked by Case Count</h3>
+            <div className="rankings-list">
+              {statistics.courtDistribution && statistics.courtDistribution.length > 0 ? (
+                statistics.courtDistribution.map((court, idx) => (
+                  <div key={idx} className="court-rank-item">
+                    <div className="rank-number">#{idx + 1}</div>
+                    <div className="court-info">
+                      <div className="court-name">{court.court_name}</div>
+                      <div className="case-count-bar">
+                        <div 
+                          className="case-count-fill" 
+                          style={{ 
+                            width: `${(parseInt(court.case_count) / parseInt(statistics.courtDistribution[0].case_count)) * 100}%` 
+                          }}
+                        />
+                        <span className="case-count-label">{court.case_count} cases</span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p>No court data available</p>
+              )}
             </div>
           </div>
 
-          <div className="charges-overview">
-            <h3>Most Common Charges</h3>
-            <div className="charges-grid">
-              {statistics.topCharges.map((charge, idx) => (
-                <div key={idx} className="charge-card">
-                  <div className="charge-count">{charge.count}</div>
-                  <div className="charge-details">
-                    <div className="charge-code">{charge.ars_code}</div>
-                    <div className="charge-desc">{charge.description}</div>
+          {/* Upcoming Hearings Section */}
+          <div className="upcoming-hearings-overview">
+            <h3>📅 Upcoming Arraignment Hearings</h3>
+            {upcomingHearings && upcomingHearings.length > 0 ? (
+              <div className="hearings-list">
+                {upcomingHearings.slice(0, 10).map((hearing, idx) => (
+                  <div key={idx} className="hearing-item">
+                    <div className="hearing-date-time">
+                      <span className="date">{formatDate(hearing.next_hearing)}</span>
+                    </div>
+                    <div className="hearing-details">
+                      <div className="case-number">{hearing.case_number}</div>
+                      <div className="case-title">{hearing.case_title}</div>
+                      <div className="court-judge">
+                        <span>{hearing.court_name}</span>
+                        {hearing.judge && <span> • Judge {hearing.judge}</span>}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+                {upcomingHearings.length > 10 && (
+                  <div className="see-more">
+                    <button onClick={() => setActiveTab('hearings')}>
+                      See all {upcomingHearings.length} upcoming hearings →
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="no-hearings">No upcoming hearings scheduled</p>
+            )}
           </div>
         </div>
       )}
