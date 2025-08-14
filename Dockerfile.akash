@@ -1,0 +1,63 @@
+# Production Dockerfile for Akash deployment
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install ALL dependencies (including dev for build)
+RUN npm install
+
+# Copy application code
+COPY . .
+
+# Build the frontend
+RUN npm run build
+
+# Remove dev dependencies after build
+RUN npm prune --production
+
+# Install Python3 and Chrome for scraping
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    chromium \
+    chromium-chromedriver \
+    nss \
+    freetype \
+    freetype-dev \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
+
+# Install Python dependencies for scraper
+RUN pip3 install --break-system-packages --no-cache-dir \
+    selenium \
+    psycopg2-binary \
+    python-dotenv \
+    supabase \
+    beautifulsoup4 \
+    requests
+
+# Set Chrome path for Puppeteer and Selenium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
+    CHROME_BIN=/usr/bin/chromium-browser \
+    CHROME_PATH=/usr/bin/chromium-browser \
+    CHROMEDRIVER_PATH=/usr/bin/chromedriver
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+# Set ownership
+RUN chown -R nodejs:nodejs /app
+
+USER nodejs
+
+# Expose ports
+EXPOSE 3001 5173
+
+# Start the application
+CMD ["npm", "start"]

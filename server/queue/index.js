@@ -181,7 +181,7 @@ async function initQueue(socketIo) {
               
               // Save to database
               const result = await pool.query(
-                `INSERT INTO court_cases 
+                `INSERT INTO cases 
                 (case_number, court_id, case_title, filing_date, case_type, status, 
                  parties, docket_entries, next_hearing, judge, scraped_at, user_id, raw_data) 
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), $11, $12) 

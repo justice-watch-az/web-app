@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: justice-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  app:
+    image: justice-watch:production
+    container_name: justice-app
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env.production
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NODE_ENV=production
+    volumes:
+      - ./server:/app/server
+    depends_on:
+      redis:
+        condition: service_healthy

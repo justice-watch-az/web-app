@@ -11,7 +11,7 @@ router.get('/cases/arraignments', async (req, res) => {
     
     // Query for cases that have arraignment-related data
     const result = await pool.query(
-      `SELECT * FROM court_cases 
+      `SELECT * FROM cases 
        WHERE (case_type = 'Criminal' 
               AND (raw_data->>'complaint_type' = 'Long Form Criminal Complaint'
                    OR raw_data->'next_hearing'->>'type' = 'Arraignment'
@@ -38,7 +38,7 @@ router.get('/cases', async (req, res) => {
     const { limit = 100, offset = 0 } = req.query;
     
     const result = await pool.query(
-      'SELECT * FROM court_cases ORDER BY filing_date DESC LIMIT $1 OFFSET $2',
+      'SELECT * FROM cases ORDER BY filing_date DESC LIMIT $1 OFFSET $2',
       [limit, offset]
     );
     
@@ -62,7 +62,7 @@ router.get('/cases/search', async (req, res) => {
     }
     
     const result = await pool.query(
-      `SELECT * FROM court_cases 
+      `SELECT * FROM cases 
        WHERE case_number ILIKE $1 
        OR case_title ILIKE $1 
        OR judge ILIKE $1
@@ -89,7 +89,7 @@ router.get('/cases/statistics', async (req, res) => {
         COUNT(DISTINCT judge) as total_judges,
         COUNT(CASE WHEN status = 'Open' THEN 1 END) as open_cases,
         COUNT(CASE WHEN status = 'Closed' THEN 1 END) as closed_cases
-      FROM court_cases
+      FROM cases
     `);
     
     res.json(stats.rows[0]);
@@ -109,7 +109,7 @@ router.get('/stats', async (req, res) => {
         COUNT(CASE WHEN status = 'Open' THEN 1 END) as open_cases,
         COUNT(CASE WHEN status = 'Closed' THEN 1 END) as closed_cases,
         COUNT(CASE WHEN filing_date >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as recent_cases
-      FROM court_cases
+      FROM cases
     `);
     
     const jobStats = await pool.query(`
@@ -173,7 +173,7 @@ router.get('/export', async (req, res) => {
     const { format = 'json' } = req.query;
     
     const result = await pool.query(
-      'SELECT * FROM court_cases ORDER BY filing_date DESC'
+      'SELECT * FROM cases ORDER BY filing_date DESC'
     );
     
     if (format === 'csv') {

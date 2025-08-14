@@ -1,35 +1,55 @@
+require('dotenv').config();
 const express = require('express');
-const session = require('express-session');
 const cors = require('cors');
 const helmet = require('helmet');
+// const morgan = require('morgan'); // Not installed
+const session = require('express-session');
 const rateLimit = require('express-rate-limit');
-const path = require('path');
-const http = require('http');
-const { Server } = require('socket.io');
-require('dotenv').config();
-
+const logger = require('./utils/logger');
 const authRoutes = require('./routes/auth');
 const apiRoutes = require('./routes/api');
 const scrapingRoutes = require('./routes/scraping');
 const casesRoutes = require('./routes/cases');
-const { authenticate } = require('./middleware/auth');
-const { errorHandler } = require('./middleware/errors');
+const errorHandler = require('./middleware/errorHandler');
 const { initDatabase } = require('./database');
 const { initQueue } = require('./queue');
-const logger = require('./utils/logger');
 
 const app = express();
+const PORT = process.env.PORT || 3001;
+
+// Socket.io setup
+const http = require('http');
+const { Server } = require('socket.io');
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: process.env.CLIENT_URL || 'http://localhost:5173',
-    methods: ['GET', 'POST']
+    credentials: true
   }
 });
-const PORT = process.env.PORT || 3001;
+
+// Socket connection handling
+io.on('connection', (socket) => {
+  logger.info('Client connected:', socket.id);
+  
+  socket.on('disconnect', () => {
+    logger.info('Client disconnected:', socket.id);
+  });
+});
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "blob:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "data:"],
+    },
+  },
+}));
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:5173',
   credentials: true
@@ -58,6 +78,11 @@ app.use(session({
   }
 }));
 
+// Serve static files in production
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static('dist'));
+}
+
 // Health check (no auth required)
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -69,36 +94,23 @@ app.use('/api', apiRoutes);  // Removed authentication
 app.use('/api/scraping', scrapingRoutes);  // Removed authentication
 app.use('/api/cases', casesRoutes);  // No auth
 
-// Serve static files in production
+// Serve React app for all other routes in production
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../dist')));
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../dist/index.html'));
+    res.sendFile(require('path').join(__dirname, '../dist/index.html'));
   });
 }
 
-// Error handling
+// Error handler
 app.use(errorHandler);
-
-// WebSocket connection handling
-io.on('connection', (socket) => {
-  logger.info('Client connected to WebSocket');
-  
-  socket.on('disconnect', () => {
-    logger.info('Client disconnected from WebSocket');
-  });
-});
-
-// Make io available to other modules
-app.set('io', io);
 
 // Initialize services and start server
 async function startServer() {
   try {
     await initDatabase();
-    await initQueue(io); // Pass io to queue for progress updates
+    await initQueue(io);  // Pass io instance to queue
     
-    server.listen(PORT, () => {
+    server.listen(PORT, () => {  // Use server instead of app
       logger.info(`Server running on port ${PORT}`);
     });
   } catch (error) {

@@ -11,20 +11,14 @@ router.post('/start', async (req, res) => {
     const queue = getQueue();
     const { config } = req.body;
     
-    // Create job record in database
-    const jobResult = await pool.query(
-      `INSERT INTO scraping_jobs (user_id, status, config, started_at) 
-       VALUES ($1, $2, $3, $4) RETURNING id`,
-      [req.userId, 'running', JSON.stringify(config), new Date()]
-    );
-    
-    const jobId = jobResult.rows[0].id;
+    // Skip database record for now - table doesn't exist yet
+    const jobId = Date.now(); // Use timestamp as job ID
     
     // Add to queue
-    const job = await queue.add({
+    const job = await queue.add('scrape-arraignments', {
       jobId,
-      config,
-      userId: req.userId
+      config: config || {},
+      userId: req.userId || 'anonymous'
     });
     
     res.json({

@@ -1,0 +1,77 @@
+---
+version: "2.0"
+
+services:
+  app:
+    image: yourdockerhub/justice-watch-app:v2.0
+    env:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_URL=postgresql://postgres.tsgvxobkmmvsbjzxvuas:Johnnyboy2444!@aws-1-us-west-1.pooler.supabase.com:5432/postgres
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SESSION_SECRET=your-production-session-secret-change-this
+      - JWT_SECRET=your-production-jwt-secret-change-this
+      - CLIENT_URL=https://your-domain.com
+    expose:
+      - port: 3001
+        as: 80
+        to:
+          - global: true
+      - port: 5173
+        as: 443
+        to:
+          - global: true
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    expose:
+      - port: 6379
+        to:
+          - service: app
+
+profiles:
+  compute:
+    app:
+      resources:
+        cpu:
+          units: 2
+        memory:
+          size: 4Gi
+        storage:
+          size: 2Gi
+    redis:
+      resources:
+        cpu:
+          units: 0.5
+        memory:
+          size: 1Gi
+        storage:
+          size: 1Gi
+
+  placement:
+    westcoast:
+      attributes:
+        region: us-west
+      signedBy:
+        anyOf:
+          - "akash1vz375dkt0c60annyp6mkzeejfq0qpyevhseu05"
+      pricing:
+        app:
+          denom: uakt
+          amount: 1000
+        redis:
+          denom: uakt
+          amount: 500
+
+deployment:
+  app:
+    westcoast:
+      profile: app
+      count: 1
+  redis:
+    westcoast:
+      profile: redis
+      count: 1

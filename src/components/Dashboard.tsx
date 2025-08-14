@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { courtCaseService, scrapingService } from '../services/api';
+import { io, Socket } from 'socket.io-client';
 import './Dashboard.css';
 
 interface Case {
@@ -27,9 +28,62 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [scrapingStatus, setScrapingStatus] = useState('idle');
+  const [scrapingProgress, setScrapingProgress] = useState<string>('');
+  const [courtsProcessed, setCourtsProcessed] = useState(0);
+  const [totalCourts, setTotalCourts] = useState(0);
+  const [casesFound, setCasesFound] = useState(0);
+  const [socket, setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
     loadData();
+    
+    // Connect to WebSocket
+    const newSocket = io(window.location.origin, {
+      transports: ['websocket', 'polling'],
+      withCredentials: true
+    });
+    
+    newSocket.on('connect', () => {
+      console.log('Connected to WebSocket');
+    });
+    
+    newSocket.on('scraping-progress', (data) => {
+      console.log('Progress update:', data);
+      
+      if (data.type === 'started') {
+        setTotalCourts(data.totalCourts || 0);
+        setScrapingProgress(data.message);
+      } else if (data.type === 'court') {
+        setCourtsProcessed(prev => prev + 1);
+        setScrapingProgress(data.message);
+      } else if (data.type === 'case_found') {
+        setCasesFound(prev => prev + 1);
+        setScrapingProgress(`Found: ${data.caseNumber} at ${data.court}`);
+      } else if (data.type === 'case_saved') {
+        setScrapingProgress(`Saved: ${data.caseNumber}`);
+      } else if (data.type === 'completed') {
+        setScrapingStatus('idle');
+        setScrapingProgress(data.message);
+        setTimeout(() => {
+          loadData();
+          setScrapingProgress('');
+          setCourtsProcessed(0);
+          setTotalCourts(0);
+          setCasesFound(0);
+        }, 3000);
+      } else if (data.type === 'error') {
+        setScrapingStatus('error');
+        setScrapingProgress(`Error: ${data.message}`);
+      } else {
+        setScrapingProgress(data.message);
+      }
+    });
+    
+    setSocket(newSocket);
+    
+    return () => {
+      newSocket.close();
+    };
   }, []);
 
   const loadData = async () => {
@@ -82,11 +136,14 @@ function Dashboard() {
       if (response.ok) {
         const data = await response.json();
         console.log('Arraignment scraping started:', data.message);
-        // Reload data after a delay to see new cases
-        setTimeout(() => loadData(), 5000);
-        setScrapingStatus('idle');
+        // Don't reset status here - wait for WebSocket completion
+        setCourtsProcessed(0);
+        setTotalCourts(0);
+        setCasesFound(0);
+        setScrapingProgress('Starting scraper...');
       } else {
         setScrapingStatus('error');
+        setScrapingProgress('Failed to start scraping');
       }
     } catch (error) {
       console.error('Arraignment scraping error:', error);
@@ -183,6 +240,26 @@ function Dashboard() {
           )}
           <button onClick={handleExportCSV}>Export CSV</button>
         </div>
+        
+        {/* Progress Display */}
+        {scrapingProgress && (
+          <div className="scraping-progress">
+            <div className="progress-text">{scrapingProgress}</div>
+            {totalCourts > 0 && (
+              <div className="progress-stats">
+                Courts: {courtsProcessed}/{totalCourts} | Cases Found: {casesFound}
+              </div>
+            )}
+            {scrapingStatus === 'running' && (
+              <div className="progress-bar">
+                <div 
+                  className="progress-fill" 
+                  style={{ width: `${totalCourts > 0 ? (courtsProcessed / totalCourts) * 100 : 0}%` }}
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="cases-table">
