@@ -16,15 +16,17 @@ services:
           readOnly: false
 
   app:
-    image: your-dockerhub-username/justice-watch-app:production
+    image: arealicehole/justice-watch:prod.01
     env:
       - NODE_ENV=production
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - SUPABASE_URL=your-supabase-url
-      - SUPABASE_ANON_KEY=your-anon-key
-      - SUPABASE_SERVICE_KEY=your-service-key
-      - SESSION_SECRET=your-session-secret
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - SESSION_SECRET=${SESSION_SECRET}
     expose:
       - port: 3001
         as: 80
