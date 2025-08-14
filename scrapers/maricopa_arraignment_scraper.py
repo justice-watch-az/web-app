@@ -53,12 +53,19 @@ class MaricopaArraignmentScraper:
         options.add_argument('--window-size=1920,1080')
         
         import os
-        if os.environ.get('CHROME_BIN'):
+        # In Docker, use the Alpine chromium path
+        if os.path.exists('/usr/bin/chromium-browser'):
+            options.binary_location = '/usr/bin/chromium-browser'
+        elif os.environ.get('CHROME_BIN'):
             options.binary_location = os.environ.get('CHROME_BIN')
         
         try:
             from selenium.webdriver.chrome.service import Service
-            chromedriver_path = os.environ.get('CHROMEDRIVER_PATH', 'chromedriver')
+            # In Docker, use the Alpine chromedriver path
+            if os.path.exists('/usr/bin/chromedriver'):
+                chromedriver_path = '/usr/bin/chromedriver'
+            else:
+                chromedriver_path = os.environ.get('CHROMEDRIVER_PATH', 'chromedriver')
             service = Service(chromedriver_path)
             self.driver = webdriver.Chrome(service=service, options=options)
             self.driver.set_page_load_timeout(30)
@@ -175,6 +182,20 @@ class MaricopaArraignmentScraper:
                                         if "Arraignment Hearing - Long Form" in row_text:
                                             logger.info(f"   ✅ Found arraignment case: {case_number}")
                                             
+                                            # Extract arraignment date and time from the calendar row
+                                            # Typically: [case_number, date, time, "Arraignment Hearing - Long Form", ...]
+                                            arraignment_date = None
+                                            arraignment_time = None
+                                            for i, text in enumerate(cell_texts):
+                                                # Look for date pattern (MM/DD/YYYY)
+                                                if re.match(r'\d{1,2}/\d{1,2}/\d{4}', text):
+                                                    arraignment_date = text
+                                                # Look for time pattern (HH:MM AM/PM)
+                                                elif re.match(r'\d{1,2}:\d{2}\s*(AM|PM)', text):
+                                                    arraignment_time = text
+                                            
+                                            logger.info(f"      Arraignment scheduled for: {arraignment_date} at {arraignment_time}")
+                                            
                                             # Find the case link
                                             case_links = row.find_elements(By.TAG_NAME, "a")
                                             for link in case_links:
@@ -198,7 +219,8 @@ class MaricopaArraignmentScraper:
                                                         'judge': raw_data['case_information'].get('judge'),
                                                         'parties': raw_data['party_information'],
                                                         'docket_entries': raw_data.get('events', []),
-                                                        'next_hearing': raw_data['case_calendar'][0] if raw_data['case_calendar'] else None,
+                                                        'next_hearing': {'date': arraignment_date, 'time': arraignment_time, 'event': 'Arraignment Hearing - Long Form'},
+                                                        'arraignment_date': arraignment_date,  # Store arraignment date explicitly
                                                         'court_name': court['name'],
                                                         'disposition_information': raw_data.get('disposition_information', []),
                                                         'case_documents': raw_data.get('case_documents', []),
@@ -253,6 +275,19 @@ class MaricopaArraignmentScraper:
                                 if is_long_form and case_number.startswith('TR'):
                                     logger.info(f"   ✅ Found arraignment case: {case_number}")
                                     
+                                    # Extract date and time from calendar lines
+                                    # Typically layout: case_number, date, time, event
+                                    arraignment_date = None
+                                    arraignment_time = None
+                                    if i + 1 < len(lines):
+                                        # Check if next line is a date
+                                        if re.match(r'\d{1,2}/\d{1,2}/\d{4}', lines[i + 1]):
+                                            arraignment_date = lines[i + 1]
+                                            if i + 2 < len(lines) and re.match(r'\d{1,2}:\d{2}\s*(AM|PM)', lines[i + 2]):
+                                                arraignment_time = lines[i + 2]
+                                    
+                                    logger.info(f"      Arraignment scheduled for: {arraignment_date} at {arraignment_time}")
+                                    
                                     # CLICK on the case number link instead of building URL
                                     logger.info(f"      Looking for case {case_number} link to click...")
                                     case_links = self.driver.find_elements(By.PARTIAL_LINK_TEXT, case_number)
@@ -279,7 +314,8 @@ class MaricopaArraignmentScraper:
                                             'judge': raw_data['case_information'].get('judge'),
                                             'parties': raw_data['party_information'],
                                             'docket_entries': raw_data.get('events', []),
-                                            'next_hearing': raw_data['case_calendar'][0] if raw_data['case_calendar'] else None,
+                                            'next_hearing': {'date': arraignment_date, 'time': arraignment_time, 'event': 'Arraignment Hearing - Long Form'},
+                                            'arraignment_date': arraignment_date,  # Store arraignment date explicitly
                                             'court_name': court['name'],
                                             'disposition_information': raw_data.get('disposition_information', []),
                                             'case_documents': raw_data.get('case_documents', []),

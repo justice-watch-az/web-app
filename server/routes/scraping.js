@@ -65,6 +65,21 @@ router.post('/stop', async (req, res) => {
 // Get scraping status
 router.get('/status', async (req, res) => {
   try {
+    // First check if there's an active job in the queue
+    const queue = getQueue();
+    if (queue) {
+      const jobs = await queue.getActive();
+      if (jobs.length > 0) {
+        // There's an active job running
+        return res.json({ 
+          status: 'running',
+          queueStatus: 'active',
+          activeJobs: jobs.length
+        });
+      }
+    }
+    
+    // Check database for last job status
     const result = await pool.query(
       `SELECT * FROM scraping_jobs 
        WHERE user_id = $1 
@@ -120,6 +135,79 @@ router.post('/arraignments', async (req, res) => {
     const { courtId, dateRangeDays } = req.body;
     
     logger.info('Starting arraignment-only scraping: Arraignment Hearing - Long Form cases ONLY');
+    
+    // If no queue (Redis not available), run directly
+    if (!queue) {
+      logger.info('No Redis queue available, running scraper directly');
+      
+      // Run the scraper directly
+      const { spawn } = require('child_process');
+      const path = require('path');
+      
+      const scraperConfig = {
+        court_id: courtId || 'all',
+        scrape_calendar: true,
+        date_range_days: dateRangeDays || 30,
+        headless: true
+      };
+      
+      // Use the new Maricopa court scraper that only gets arraignment cases
+      const pythonProcess = spawn('python3', [
+        path.join(__dirname, '../../scrapers/maricopa_arraignment_scraper.py'),
+        JSON.stringify(scraperConfig)
+      ]);
+      
+      let output = '';
+      let error = '';
+      let hasResponded = false;
+      
+      // Send initial response that scraping has started
+      res.json({
+        message: 'Arraignment scraping started - ONLY collecting "Arraignment Hearing - Long Form" cases',
+        status: 'running',
+        filter: 'arraignment_long_form_only'
+      });
+      hasResponded = true;
+      
+      pythonProcess.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+      
+      pythonProcess.stderr.on('data', (data) => {
+        const log = data.toString();
+        error += log;
+        logger.info(`Arraignment scraper: ${log}`);
+      });
+      
+      pythonProcess.on('close', async (code) => {
+        if (code !== 0) {
+          logger.error(`Arraignment scraping failed: ${error}`);
+        } else {
+          try {
+            const result = JSON.parse(output);
+            const { saveCaseToDatabase } = require('../queue/db-handler-simple');
+            
+            // Save each arraignment case to database using new schema
+            if (result.arraignment_cases && result.arraignment_cases.length > 0) {
+              for (const caseData of result.arraignment_cases) {
+                try {
+                  await saveCaseToDatabase(caseData, pool, req.userId);
+                  logger.info(`Saved case ${caseData.case_number} to database`);
+                } catch (error) {
+                  logger.error(`Failed to save case ${caseData.case_number}:`, error);
+                }
+              }
+            }
+            
+            logger.info(`Scraping completed. Found ${result.arraignment_cases?.length || 0} cases`);
+          } catch (parseError) {
+            logger.error('Error parsing arraignment data:', parseError);
+          }
+        }
+      });
+      
+      return; // Already sent response
+    }
     
     // Create job record in database
     const jobResult = await pool.query(

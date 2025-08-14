@@ -37,6 +37,32 @@ async function saveCaseToDatabase(caseData, pool, userId = null) {
       ...(caseData.raw_data?.case_activity || [])
     ];
     
+    // Use arraignment_date if provided from scraper, otherwise look in next_hearing or calendar
+    let nextHearingDate = null;
+    if (caseData.arraignment_date) {
+      // Direct arraignment date from calendar list during scraping
+      nextHearingDate = caseData.arraignment_date;
+      logger.info(`Using arraignment_date from scraper: ${nextHearingDate}`);
+    } else if (caseData.next_hearing && typeof caseData.next_hearing === 'object' && caseData.next_hearing.date) {
+      // Structured hearing object from scraper
+      nextHearingDate = caseData.next_hearing.date;
+      logger.info(`Using next_hearing.date from scraper: ${nextHearingDate}`);
+    } else if (caseData.next_hearing && typeof caseData.next_hearing === 'string') {
+      // String date directly
+      nextHearingDate = caseData.next_hearing;
+      logger.info(`Using next_hearing string from scraper: ${nextHearingDate}`);
+    } else if (calendarData && calendarData.length > 0) {
+      // Look for arraignment in calendar entries
+      const arraignmentEntry = calendarData.find(c => 
+        c.event && c.event.toLowerCase().includes('arraignment')
+      );
+      nextHearingDate = arraignmentEntry ? arraignmentEntry.date : calendarData[0]?.date;
+      logger.info(`Using calendar data: ${nextHearingDate}`);
+    }
+    
+    // Log for debugging
+    logger.info(`Case ${caseData.case_number} - next_hearing will be saved as: ${nextHearingDate}`);
+    
     // Prepare case data matching ACTUAL Supabase columns
     const caseRecord = {
       case_number: caseData.case_number,
@@ -54,7 +80,7 @@ async function saveCaseToDatabase(caseData, pool, userId = null) {
       // Store in the ACTUAL JSON columns that exist in Supabase
       parties: JSON.stringify(partiesData),
       docket_entries: JSON.stringify(docketEntries),  // Note: 'docket_entries' not 'calendar'
-      next_hearing: calendarData[0]?.date || null,  // First calendar date as next hearing
+      next_hearing: nextHearingDate,  // Use the properly extracted arraignment date
       events: JSON.stringify(eventsData),
       documents: JSON.stringify(caseData.raw_data?.case_documents || caseData.raw_data?.documents || []),
       raw_data: JSON.stringify(caseData.raw_data || caseData)
@@ -109,6 +135,12 @@ async function saveCaseToDatabase(caseData, pool, userId = null) {
     
   } catch (error) {
     logger.error('Error saving case to database:', error);
+    logger.error('Failed case data:', JSON.stringify({
+      case_number: caseData.case_number,
+      court_id: caseData.court_id,
+      next_hearing: caseData.next_hearing,
+      arraignment_date: caseData.arraignment_date
+    }));
     // Don't throw - just log and continue
     return null;
   }

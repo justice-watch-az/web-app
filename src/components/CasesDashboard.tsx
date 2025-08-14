@@ -47,6 +47,7 @@ function CasesDashboard() {
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [scrapingStatus, setScrapingStatus] = useState('idle');
+  const [hideOldCases, setHideOldCases] = useState(false);
   
   const handleLogout = async () => {
     await logout();
@@ -157,9 +158,39 @@ function CasesDashboard() {
     });
   };
 
-  // Group cases by next_hearing date
-  const groupedCases = cases.reduce((groups, case_) => {
-    const date = case_.next_hearing || 'no-date';
+  // Filter cases based on hideOldCases setting
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const filteredCases = hideOldCases 
+    ? cases.filter(case_ => {
+        if (!case_.next_hearing) return true; // Keep cases with no date
+        const hearingDate = new Date(case_.next_hearing);
+        return hearingDate >= today;
+      })
+    : cases;
+
+  // Separate future and past cases
+  const futureCases: CaseSummary[] = [];
+  const pastCases: CaseSummary[] = [];
+  const noDates: CaseSummary[] = [];
+  
+  filteredCases.forEach(case_ => {
+    if (!case_.next_hearing) {
+      noDates.push(case_);
+    } else {
+      const hearingDate = new Date(case_.next_hearing);
+      if (hearingDate >= today) {
+        futureCases.push(case_);
+      } else {
+        pastCases.push(case_);
+      }
+    }
+  });
+
+  // Group future cases by date
+  const groupedFutureCases = futureCases.reduce((groups, case_) => {
+    const date = case_.next_hearing!;
     if (!groups[date]) {
       groups[date] = [];
     }
@@ -167,11 +198,24 @@ function CasesDashboard() {
     return groups;
   }, {} as Record<string, CaseSummary[]>);
 
-  // Sort dates
-  const sortedDates = Object.keys(groupedCases).sort((a, b) => {
-    if (a === 'no-date') return 1;
-    if (b === 'no-date') return -1;
+  // Group past cases by date
+  const groupedPastCases = pastCases.reduce((groups, case_) => {
+    const date = case_.next_hearing!;
+    if (!groups[date]) {
+      groups[date] = [];
+    }
+    groups[date].push(case_);
+    return groups;
+  }, {} as Record<string, CaseSummary[]>);
+
+  // Sort future dates chronologically
+  const sortedFutureDates = Object.keys(groupedFutureCases).sort((a, b) => {
     return new Date(a).getTime() - new Date(b).getTime();
+  });
+
+  // Sort past dates reverse chronologically (most recent first)
+  const sortedPastDates = Object.keys(groupedPastCases).sort((a, b) => {
+    return new Date(b).getTime() - new Date(a).getTime();
   });
 
   const handleExportCSV = () => {
@@ -339,6 +383,12 @@ function CasesDashboard() {
         <button onClick={loadData} className="refresh-btn">
           🔄 Refresh
         </button>
+        <button 
+          onClick={() => setHideOldCases(!hideOldCases)} 
+          className={`toggle-btn ${hideOldCases ? 'active' : ''}`}
+        >
+          {hideOldCases ? '👁️ Show All' : '🚫 Hide Old'}
+        </button>
         <button onClick={handleExportCSV} className="export-btn csv-btn" disabled={cases.length === 0}>
           📊 Export CSV
         </button>
@@ -349,13 +399,117 @@ function CasesDashboard() {
 
       {/* Cases Grid */}
       <div className="cases-container">
-        {sortedDates.map(date => (
-          <div key={date} className="date-group">
+        {/* Future Cases */}
+        {sortedFutureDates.length > 0 && (
+          <>
+            {sortedFutureDates.map(date => (
+              <div key={date} className="date-group">
+                <h2 className="date-header">
+                  {formatDateHeader(date)}
+                </h2>
+                <div className="cases-grid">
+                  {groupedFutureCases[date].map(case_ => (
+                    <div key={case_.id} className="case-card" onClick={() => loadCaseDetails(case_)}>
+                      <div className="case-card-header">
+                        <span className="case-number">{case_.case_number}</span>
+                        <span className="case-status">{case_.case_status}</span>
+                      </div>
+                      <div className="case-card-body">
+                        <div className="case-title">{case_.case_title}</div>
+                        <div className="case-info">
+                          <div className="info-item">
+                            <span className="label">Court:</span>
+                            <span className="value">{case_.court_name}</span>
+                          </div>
+                          <div className="info-item">
+                            <span className="label">Judge:</span>
+                            <span className="value">{case_.judge || 'N/A'}</span>
+                          </div>
+                          <div className="info-item">
+                            <span className="label">Type:</span>
+                            <span className="value">{case_.case_type}</span>
+                          </div>
+                          {case_.next_hearing && (
+                            <div className="info-item hearing-date">
+                              <span className="label">Hearing:</span>
+                              <span className="value">{formatDate(case_.next_hearing)}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="case-card-footer">
+                        <button className="view-details-btn">View Details →</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {/* Past Cases Section */}
+        {!hideOldCases && sortedPastDates.length > 0 && (
+          <>
+            <div className="date-group past-cases-section">
+              <h2 className="date-header past-header">
+                📅 Past Hearings
+              </h2>
+            </div>
+            {sortedPastDates.map(date => (
+              <div key={`past-${date}`} className="date-group past-group">
+                <h2 className="date-header past-date">
+                  {formatDateHeader(date)}
+                </h2>
+                <div className="cases-grid">
+                  {groupedPastCases[date].map(case_ => (
+                    <div key={case_.id} className="case-card past-case" onClick={() => loadCaseDetails(case_)}>
+                      <div className="case-card-header">
+                        <span className="case-number">{case_.case_number}</span>
+                        <span className="case-status">{case_.case_status}</span>
+                      </div>
+                      <div className="case-card-body">
+                        <div className="case-title">{case_.case_title}</div>
+                        <div className="case-info">
+                          <div className="info-item">
+                            <span className="label">Court:</span>
+                            <span className="value">{case_.court_name}</span>
+                          </div>
+                          <div className="info-item">
+                            <span className="label">Judge:</span>
+                            <span className="value">{case_.judge || 'N/A'}</span>
+                          </div>
+                          <div className="info-item">
+                            <span className="label">Type:</span>
+                            <span className="value">{case_.case_type}</span>
+                          </div>
+                          {case_.next_hearing && (
+                            <div className="info-item hearing-date">
+                              <span className="label">Hearing:</span>
+                              <span className="value">{formatDate(case_.next_hearing)}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="case-card-footer">
+                        <button className="view-details-btn">View Details →</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {/* No Date Cases */}
+        {noDates.length > 0 && (
+          <div className="date-group">
             <h2 className="date-header">
-              {date === 'no-date' ? 'No Hearing Scheduled' : formatDateHeader(date)}
+              No Hearing Scheduled
             </h2>
             <div className="cases-grid">
-              {groupedCases[date].map(case_ => (
+              {noDates.map(case_ => (
                 <div key={case_.id} className="case-card" onClick={() => loadCaseDetails(case_)}>
                   <div className="case-card-header">
                     <span className="case-number">{case_.case_number}</span>
@@ -376,12 +530,6 @@ function CasesDashboard() {
                         <span className="label">Type:</span>
                         <span className="value">{case_.case_type}</span>
                       </div>
-                      {case_.next_hearing && (
-                        <div className="info-item hearing-date">
-                          <span className="label">Hearing:</span>
-                          <span className="value">{formatDate(case_.next_hearing)}</span>
-                        </div>
-                      )}
                     </div>
                   </div>
                   <div className="case-card-footer">
@@ -391,7 +539,7 @@ function CasesDashboard() {
               ))}
             </div>
           </div>
-        ))}
+        )}
       </div>
 
       {/* Case Details Modal */}

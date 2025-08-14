@@ -42,8 +42,10 @@ async function initQueue(socketIo) {
 
   // Process scrape-arraignments jobs
   scrapingQueue.process('scrape-arraignments', async (job) => {
-    const { courtId, userId, dateRangeDays } = job.data;
+    const { courtId, userId, dateRangeDays, jobId } = job.data;
     const { pool } = require('../database');
+    
+    logger.info(`Starting arraignment scraping job ${jobId} for user ${userId}`);
     
     return new Promise(async (resolve, reject) => {
       const scraperConfig = {
@@ -115,8 +117,25 @@ async function initQueue(socketIo) {
 
       pythonProcess.on('close', async (code) => {
         if (code !== 0) {
-          logger.error(`Arraignment scraping failed: ${error}`);
-          reject(new Error(error));
+          logger.error(`Arraignment scraping failed with code ${code}: ${error}`);
+          
+          // Update job status to failed if we have a jobId
+          if (jobId) {
+            try {
+              await pool.query(
+                `UPDATE scraping_jobs 
+                 SET status = 'failed', 
+                     completed_at = NOW(), 
+                     error = $1
+                 WHERE id = $2`,
+                [`Python process exited with code ${code}: ${error}`, jobId]
+              );
+            } catch (dbError) {
+              logger.error(`Failed to update job ${jobId} status:`, dbError);
+            }
+          }
+          
+          reject(new Error(`Scraping failed with exit code ${code}: ${error}`));
         } else {
           try {
             const result = JSON.parse(output);
@@ -148,19 +167,53 @@ async function initQueue(socketIo) {
               }
             }
             
+            // Update job status in database if we have a jobId
+            if (jobId) {
+              try {
+                await pool.query(
+                  `UPDATE scraping_jobs 
+                   SET status = 'completed', 
+                       completed_at = NOW(), 
+                       cases_found = $1
+                   WHERE id = $2`,
+                  [result.arraignment_cases?.length || 0, jobId]
+                );
+                logger.info(`Updated job ${jobId} status to completed`);
+              } catch (dbError) {
+                logger.error(`Failed to update job ${jobId} status:`, dbError);
+              }
+            }
+            
             // Emit completion
             if (io) {
               io.emit('scraping-progress', {
                 type: 'completed',
-                message: `Scraping completed. Found ${result.total_arraignment_cases || 0} cases from ${result.total_courts_processed || 0} courts`,
-                totalCases: result.total_arraignment_cases || 0,
-                totalCourts: result.total_courts_processed || 0
+                message: `Scraping completed. Found ${result.arraignment_cases?.length || 0} cases from ${result.stats?.courts_discovered || 0} courts`,
+                totalCases: result.arraignment_cases?.length || 0,
+                totalCourts: result.stats?.courts_discovered || 0
               });
             }
             
             resolve(result);
           } catch (parseError) {
             logger.error('Error parsing arraignment data:', parseError);
+            
+            // Update job status to failed if we have a jobId
+            if (jobId) {
+              try {
+                await pool.query(
+                  `UPDATE scraping_jobs 
+                   SET status = 'failed', 
+                       completed_at = NOW(), 
+                       error = $1
+                   WHERE id = $2`,
+                  [parseError.message, jobId]
+                );
+              } catch (dbError) {
+                logger.error(`Failed to update job ${jobId} status:`, dbError);
+              }
+            }
+            
             reject(parseError);
           }
         }

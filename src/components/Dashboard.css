@@ -589,6 +589,34 @@
   background: linear-gradient(135deg, #dc2626, #b91c1c);
 }
 
+/* Toggle Button */
+.toggle-btn {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  border: 2px solid #9ca3af;
+  background: white;
+  color: #4b5563;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.toggle-btn:hover {
+  background: #f3f4f6;
+  border-color: #6b7280;
+}
+
+.toggle-btn.active {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: white;
+  border: none;
+}
+
+.toggle-btn.active:hover {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+}
+
 /* Cases Container */
 .cases-container {
   padding: 2rem;
@@ -868,4 +896,39 @@
 
 .case-link:hover {
   background: #4f46e5;
+}
+
+/* Past Cases Styles */
+.past-cases-section {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 3px solid #e5e7eb;
+}
+
+.past-header {
+  color: #6b7280;
+  font-size: 1.8rem;
+  text-align: center;
+  background: linear-gradient(to right, #f3f4f6, white, #f3f4f6);
+  padding: 1rem;
+  border-radius: 8px;
+}
+
+.past-group .date-header {
+  color: #9ca3af;
+  font-size: 1.2rem;
+}
+
+.case-card.past-case {
+  opacity: 0.8;
+  background: #fafafa;
+}
+
+.case-card.past-case .case-card-header {
+  background: linear-gradient(135deg, #9ca3af, #6b7280);
+}
+
+.case-card.past-case:hover {
+  opacity: 1;
+  background: white;
 }
