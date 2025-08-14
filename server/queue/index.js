@@ -3,9 +3,9 @@ const path = require('path');
 const logger = require('../utils/logger');
 const { saveCaseToDatabase } = require('./db-handler-simple');
 
-let scrapingQueue;
-let io;
-let Queue;
+let scrapingQueue = null;
+let io = null;
+let Queue = null;
 
 // Try to load Bull, but don't fail if Redis isn't available
 try {
