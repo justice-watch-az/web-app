@@ -11,7 +11,9 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 class SupabasePool {
   async query(sql, params = []) {
     // Don't map table names - use "cases" as is in Supabase
+    // Normalize SQL by removing extra whitespace and newlines for matching
     const mappedSql = sql;
+    const normalizedSql = sql.replace(/\s+/g, ' ').toLowerCase().trim();
     
     // Handle simple SELECT COUNT queries
     if (mappedSql.includes('SELECT COUNT(*)')) {
@@ -53,9 +55,9 @@ class SupabasePool {
     }
     
     // Handle SELECT queries
-    if (mappedSql.toLowerCase().startsWith('select')) {
+    if (normalizedSql.startsWith('select')) {
       // Handle SELECT * FROM cases queries with any column specification
-      if (mappedSql.toLowerCase().includes('from cases')) {
+      if (normalizedSql.includes('from cases')) {
         logger.info('Handling cases SELECT query');
         
         // Check for specific query patterns
@@ -192,7 +194,7 @@ class SupabasePool {
       }
       
       // Handle SELECT FROM users queries (for authentication)
-      if (mappedSql.includes('FROM users')) {
+      if (normalizedSql.includes('from users')) {
         // Parse the WHERE clause for email
         const emailMatch = mappedSql.match(/WHERE email = \$1/i);
         if (emailMatch && params[0]) {
@@ -229,7 +231,7 @@ class SupabasePool {
       }
       
       // Handle SELECT FROM scraping_jobs queries
-      if (mappedSql.includes('FROM scraping_jobs')) {
+      if (normalizedSql.includes('from scraping_jobs')) {
         logger.info('Handling scraping_jobs SELECT query');
         
         // Parse WHERE clause
@@ -271,7 +273,7 @@ class SupabasePool {
     }
     
     // Handle INSERT INTO users (for registration)
-    if (mappedSql.includes('INSERT INTO users')) {
+    if (normalizedSql.includes('insert into users')) {
       if (params.length >= 3) {
         const userData = {
           email: params[0],
@@ -296,7 +298,7 @@ class SupabasePool {
     }
     
     // Handle INSERT INTO cases
-    if (mappedSql.includes('INSERT INTO cases')) {
+    if (normalizedSql.includes('insert into cases')) {
       // Handle NEW CORRECT format from db-handler-simple (17 params matching Supabase schema)
       if (params.length === 17) {
         const caseData = {
@@ -403,7 +405,7 @@ class SupabasePool {
     }
     
     // Handle INSERT INTO scraping_jobs
-    if (mappedSql.includes('INSERT INTO scraping_jobs')) {
+    if (normalizedSql.includes('insert into scraping_jobs')) {
       logger.info('Handling scraping_jobs INSERT');
       
       // Parse the columns and values
@@ -440,15 +442,15 @@ class SupabasePool {
     }
     
     // Handle other INSERT queries
-    if (mappedSql.includes('INSERT INTO')) {
+    if (normalizedSql.includes('insert into')) {
       logger.info(`Generic INSERT query: ${mappedSql.substring(0, 100)}`);
       return { rows: [], rowCount: 0 };
     }
     
     // Handle UPDATE queries
-    if (mappedSql.toLowerCase().startsWith('update')) {
+    if (normalizedSql.startsWith('update')) {
       // Handle UPDATE scraping_jobs
-      if (mappedSql.includes('UPDATE scraping_jobs')) {
+      if (normalizedSql.includes('update scraping_jobs')) {
         logger.info('Handling scraping_jobs UPDATE');
         
         // Parse the SET and WHERE clauses
