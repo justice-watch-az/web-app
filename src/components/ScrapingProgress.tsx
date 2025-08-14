@@ -45,7 +45,7 @@ function ScrapingProgress() {
     setCourts(newCourtsMap);
     
     // Connect to WebSocket
-    const newSocket = io('http://localhost:3001');
+    const newSocket = io(window.location.origin);
     setSocket(newSocket);
 
     newSocket.on('scraping-progress', (event: ProgressEvent) => {

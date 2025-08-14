@@ -2,16 +2,12 @@
 version: "2.0"
 services:
   web:
-    image: arealicehole/justice-watch:prod.01
+    image: arealicehole/justice-watch:aio.07
     expose:
       - port: 3001
         as: 80
         to:
           - global: true
-    command:
-      - "sh"
-      - "-c"
-      - "node server/index.js"
     env:
       - SUPABASE_URL=https://tsgvxobkmmvsbjzxvuas.supabase.co
       - >-
@@ -21,8 +17,6 @@ services:
       - JWT_SECRET=6KnV07LtADeznJLZKyjvAGUfJzftCt+1RS13B/B6g1M=
       - SESSION_SECRET=MZYo44hV4KsFiY+xaCygC2SU7VxP8KdtOkXWvhG576A=
       - NODE_ENV=production
-      - REDIS_HOST=127.0.0.1
-      - REDIS_PORT=6379
 profiles:
   compute:
     web:

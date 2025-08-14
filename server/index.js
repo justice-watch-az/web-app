@@ -13,6 +13,7 @@ const casesRoutes = require('./routes/cases');
 const errorHandler = require('./middleware/errorHandler');
 const { initDatabase } = require('./database');
 const { initQueue } = require('./queue');
+const { initAdminUser } = require('./utils/init-admin');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -45,13 +46,29 @@ app.use(helmet({
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "blob:"],
-      connectSrc: ["'self'"],
+      connectSrc: ["'self'", "http://localhost:3001", "https://*.akash.win", "ws://localhost:3001", "wss://*.akash.win"],
       fontSrc: ["'self'", "data:"],
     },
   },
 }));
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    // Allow localhost and Akash domains
+    const allowedPatterns = [
+      /^http:\/\/localhost(:\d+)?$/,
+      /^https?:\/\/.*\.akash\.win$/,
+      /^https?:\/\/.*\.ingress\.akash\.win$/
+    ];
+    
+    if (allowedPatterns.some(pattern => pattern.test(origin))) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow all for now
+    }
+  },
   credentials: true
 }));
 
@@ -108,6 +125,11 @@ app.use(errorHandler);
 async function startServer() {
   try {
     await initDatabase();
+    
+    // Create admin user if it doesn't exist
+    const { pool } = require('./database');
+    await initAdminUser(pool);
+    
     await initQueue(io);  // Pass io instance to queue
     
     server.listen(PORT, () => {  // Use server instead of app

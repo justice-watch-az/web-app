@@ -4,10 +4,12 @@ const { Pool } = require('pg');
  * Save case data to the new normalized database schema
  */
 async function saveCaseToDatabase(caseData, pool, userId = null) {
-  const client = await pool.connect();
+  // Use pool directly for Supabase compatibility
+  const client = pool;
   
   try {
-    await client.query('BEGIN');
+    // Skip transactions for Supabase
+    // await client.query('BEGIN');
     
     // Generate court_id from court_name if not provided
     const courtId = caseData.court_id || 

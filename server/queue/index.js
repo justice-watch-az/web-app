@@ -1,22 +1,44 @@
-const Queue = require('bull');
 const { spawn } = require('child_process');
 const path = require('path');
 const logger = require('../utils/logger');
-const { saveCaseToDatabase } = require('./db-handler');
+const { saveCaseToDatabase } = require('./db-handler-simple');
 
 let scrapingQueue;
 let io;
+let Queue;
+
+// Try to load Bull, but don't fail if Redis isn't available
+try {
+  Queue = require('bull');
+} catch (error) {
+  logger.warn('Bull queue not available, will use direct execution');
+}
 
 async function initQueue(socketIo) {
   io = socketIo; // Store io instance for progress updates
   
-  scrapingQueue = new Queue('scraping', {
-    redis: {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: process.env.REDIS_PORT || 6379,
-      password: process.env.REDIS_PASSWORD
+  // Only initialize Bull queue if Redis is available
+  if (Queue) {
+    try {
+      scrapingQueue = new Queue('scraping', {
+        redis: {
+          host: process.env.REDIS_HOST || 'localhost',
+          port: process.env.REDIS_PORT || 6379,
+          password: process.env.REDIS_PASSWORD
+        }
+      });
+      logger.info('Redis queue initialized successfully');
+    } catch (error) {
+      logger.warn('Failed to connect to Redis, using direct execution mode');
+      scrapingQueue = null;
     }
-  });
+  } else {
+    logger.warn('Running without Redis queue - scraping will execute directly');
+    scrapingQueue = null;
+  }
+  
+  // If we have a real queue, set up processors
+  if (scrapingQueue) {
 
   // Process scrape-arraignments jobs
   scrapingQueue.process('scrape-arraignments', async (job) => {
@@ -258,6 +280,8 @@ async function initQueue(socketIo) {
     });
   });
 
+  } // Close the if(scrapingQueue) block
+  
   logger.info('Job queue initialized');
 }
 
