@@ -451,4 +451,378 @@
   color: #4f46e5;
   text-decoration: underline;
 }
-EOF < /dev/null
+
+/* Single Screen Dashboard Styles */
+.dashboard-container {
+  min-height: 100vh;
+  background: #f3f4f6;
+}
+
+/* Stats Bar */
+.stats-bar {
+  display: flex;
+  justify-content: center;
+  gap: 3rem;
+  padding: 1.5rem;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.stat-item {
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #1f2937;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 0.5rem;
+}
+
+/* Action Bar */
+.action-bar {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: white;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.scraping-btn {
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: #6366f1;
+  color: white;
+}
+
+.scraping-btn:hover:not(:disabled) {
+  background: #4f46e5;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.scraping-btn.running {
+  background: #f59e0b;
+  animation: pulse 1.5s infinite;
+}
+
+.scraping-btn.completed {
+  background: #10b981;
+}
+
+.scraping-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.refresh-btn {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  border: 2px solid #e5e7eb;
+  background: white;
+  color: #1f2937;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.refresh-btn:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+
+/* Cases Container */
+.cases-container {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.date-group {
+  margin-bottom: 3rem;
+}
+
+.date-header {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+/* Cases Grid - 4 columns */
+.cases-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+@media (min-width: 1200px) {
+  .cases-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 1199px) and (min-width: 900px) {
+  .cases-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 899px) and (min-width: 600px) {
+  .cases-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Case Card */
+.case-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s;
+  cursor: pointer;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.case-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+}
+
+.case-card-header {
+  padding: 1rem;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.case-number {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.case-status {
+  font-size: 0.75rem;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.case-card-body {
+  padding: 1rem;
+  flex: 1;
+}
+
+.case-title {
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  min-height: 2.8em;
+}
+
+.case-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.info-item {
+  display: flex;
+  font-size: 0.85rem;
+}
+
+.info-item .label {
+  color: #6b7280;
+  min-width: 60px;
+  font-weight: 500;
+}
+
+.info-item .value {
+  color: #1f2937;
+  flex: 1;
+}
+
+.info-item.hearing-date {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.info-item.hearing-date .value {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.case-card-footer {
+  padding: 0.75rem 1rem;
+  background: #f9fafb;
+  border-top: 1px solid #e5e7eb;
+}
+
+.view-details-btn {
+  width: 100%;
+  padding: 0.5rem;
+  background: none;
+  border: none;
+  color: #6366f1;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s;
+  font-size: 0.875rem;
+}
+
+.view-details-btn:hover {
+  color: #4f46e5;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 2rem;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  max-width: 800px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: none;
+  border: none;
+  font-size: 2rem;
+  color: #6b7280;
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.modal-close:hover {
+  background: #f3f4f6;
+  color: #1f2937;
+}
+
+.modal-content h2 {
+  padding: 1.5rem 2rem;
+  margin: 0;
+  border-bottom: 2px solid #e5e7eb;
+  color: #1f2937;
+}
+
+.modal-section {
+  padding: 1.5rem 2rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-section:last-child {
+  border-bottom: none;
+}
+
+.modal-section h3 {
+  margin: 0 0 1rem 0;
+  color: #4b5563;
+  font-size: 1.1rem;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.detail-item {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.detail-item .label {
+  font-weight: 500;
+  color: #6b7280;
+  min-width: 100px;
+}
+
+.detail-item .value {
+  color: #1f2937;
+}
+
+.parties-list,
+.charges-list,
+.hearings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.party-item,
+.charge-item,
+.hearing-item {
+  padding: 0.75rem;
+  background: #f9fafb;
+  border-radius: 6px;
+}
+
+.attorney {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.case-link {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background: #6366f1;
+  color: white;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.case-link:hover {
+  background: #4f46e5;
+}
