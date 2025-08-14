@@ -5,6 +5,46 @@ const logger = require('../utils/logger');
 
 const router = express.Router();
 
+// Test Python environment
+router.get('/test-python', async (req, res) => {
+  const { spawn } = require('child_process');
+  const path = require('path');
+  
+  try {
+    // Test if Python is available
+    const pythonTest = spawn('python3', ['--version']);
+    let pythonVersion = '';
+    
+    pythonTest.stdout.on('data', (data) => {
+      pythonVersion += data.toString();
+    });
+    
+    pythonTest.stderr.on('data', (data) => {
+      pythonVersion += data.toString();
+    });
+    
+    pythonTest.on('close', (code) => {
+      // Check if scraper file exists
+      const fs = require('fs');
+      const scraperPath = path.join(__dirname, '../../scrapers/maricopa_arraignment_scraper.py');
+      const scraperExists = fs.existsSync(scraperPath);
+      
+      res.json({
+        pythonAvailable: code === 0,
+        pythonVersion: pythonVersion.trim(),
+        scraperPath: scraperPath,
+        scraperExists: scraperExists,
+        workingDir: process.cwd()
+      });
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Failed to test Python environment',
+      message: error.message 
+    });
+  }
+});
+
 // Start scraping job
 router.post('/start', async (req, res) => {
   try {
@@ -103,6 +143,138 @@ router.get('/status', async (req, res) => {
   } catch (error) {
     logger.error('Error fetching job status:', error);
     res.status(500).json({ error: 'Failed to fetch status' });
+  }
+});
+
+// Start arraignment scraping job (simplified endpoint for frontend)
+router.post('/arraignments', async (req, res) => {
+  try {
+    const { spawn } = require('child_process');
+    const path = require('path');
+    const fs = require('fs');
+    
+    // Check if scraper exists
+    const scraperPath = path.join(__dirname, '../../scrapers/maricopa_arraignment_scraper.py');
+    if (!fs.existsSync(scraperPath)) {
+      logger.error('Scraper file not found:', scraperPath);
+      return res.status(500).json({ 
+        error: 'Scraper not found',
+        path: scraperPath 
+      });
+    }
+    
+    // Create job record in database
+    const jobResult = await pool.query(
+      `INSERT INTO scraping_jobs (user_id, status, started_at) 
+       VALUES ($1, 'running', NOW()) 
+       RETURNING id`,
+      [req.userId || 'anonymous']
+    );
+    const jobId = jobResult.rows[0].id;
+    
+    // Run scraper directly (bypass queue for now)
+    const scraperConfig = {
+      court_id: req.body.courtId || 'all',
+      scrape_calendar: true,
+      date_range_days: req.body.dateRangeDays || 30,
+      headless: true
+    };
+    
+    logger.info(`Starting arraignment scraper with config:`, scraperConfig);
+    
+    const pythonProcess = spawn('python3', [
+      scraperPath,
+      JSON.stringify(scraperConfig)
+    ]);
+    
+    let output = '';
+    let error = '';
+    let casesFound = 0;
+    
+    pythonProcess.stdout.on('data', (data) => {
+      output += data.toString();
+      logger.info('Scraper output:', data.toString());
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      const log = data.toString();
+      error += log;
+      logger.info('Scraper log:', log);
+      
+      // Count cases as they're found
+      if (log.includes('Found arraignment case:')) {
+        casesFound++;
+      }
+    });
+    
+    pythonProcess.on('close', async (code) => {
+      logger.info(`Scraper process exited with code ${code}`);
+      
+      if (code !== 0) {
+        await pool.query(
+          `UPDATE scraping_jobs 
+           SET status = 'failed', completed_at = NOW(), error = $1 
+           WHERE id = $2`,
+          [error || 'Process exited with code ' + code, jobId]
+        );
+        
+        // Still return success to frontend but with error info
+        res.json({
+          message: 'Scraping job completed with errors',
+          jobId,
+          status: 'failed',
+          error: error || 'Process exited with code ' + code
+        });
+      } else {
+        // Try to parse output
+        let result = null;
+        try {
+          result = JSON.parse(output);
+          casesFound = result.arraignment_cases?.length || 0;
+        } catch (e) {
+          logger.warn('Could not parse scraper output as JSON');
+        }
+        
+        await pool.query(
+          `UPDATE scraping_jobs 
+           SET status = 'completed', completed_at = NOW(), cases_found = $1 
+           WHERE id = $2`,
+          [casesFound, jobId]
+        );
+        
+        res.json({
+          message: 'Scraping job completed',
+          jobId,
+          status: 'completed',
+          casesFound
+        });
+      }
+    });
+    
+    pythonProcess.on('error', async (err) => {
+      logger.error('Failed to start scraper process:', err);
+      
+      await pool.query(
+        `UPDATE scraping_jobs 
+         SET status = 'failed', completed_at = NOW(), error = $1 
+         WHERE id = $2`,
+        [err.message, jobId]
+      );
+      
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: 'Failed to start scraper',
+          message: err.message
+        });
+      }
+    });
+    
+  } catch (error) {
+    logger.error('Error starting arraignment scraping:', error);
+    res.status(500).json({ 
+      error: 'Failed to start scraping',
+      message: error.message 
+    });
   }
 });
 

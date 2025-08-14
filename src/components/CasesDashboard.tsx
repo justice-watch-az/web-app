@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Papa from 'papaparse';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import './Dashboard.css';
 
 interface CaseSummary {
@@ -312,7 +312,7 @@ function CasesDashboard() {
     });
     
     // Add table
-    (doc as any).autoTable({
+    autoTable(doc, {
       head: [['Case #', 'Title', 'Court', 'Judge', 'Type', 'Status', 'Filed', 'Next Hearing', 'Charges']],
       body: tableData,
       startY: 35,
