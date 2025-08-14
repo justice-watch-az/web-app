@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import Papa from 'papaparse';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 import './Dashboard.css';
 
 interface CaseSummary {
@@ -171,6 +174,125 @@ function CasesDashboard() {
     return new Date(a).getTime() - new Date(b).getTime();
   });
 
+  const handleExportCSV = () => {
+    // Prepare data for CSV export
+    const csvData = cases.map(case_ => {
+      // Parse JSON fields safely
+      let plaintiff = '';
+      let defendant = '';
+      let charges = '';
+      
+      try {
+        const parties = typeof case_.parties === 'string' ? JSON.parse(case_.parties) : case_.parties;
+        plaintiff = parties?.plaintiff?.party_name || '';
+        defendant = parties?.defendant?.party_name || '';
+      } catch (e) {
+        // Silent fail
+      }
+      
+      try {
+        const docket = typeof case_.docket_entries === 'string' ? JSON.parse(case_.docket_entries) : case_.docket_entries;
+        if (Array.isArray(docket)) {
+          const chargeEntries = docket.filter(d => d.type === 'charge');
+          charges = chargeEntries.map(c => `${c.ars_code} - ${c.description}`).join('; ');
+        }
+      } catch (e) {
+        // Silent fail
+      }
+      
+      return {
+        'Case Number': case_.case_number,
+        'Case Title': case_.case_title,
+        'Court': case_.court_name,
+        'Judge': case_.judge || 'N/A',
+        'Case Type': case_.case_type,
+        'Status': case_.case_status,
+        'Filing Date': formatDate(case_.filing_date),
+        'Next Hearing': formatDate(case_.next_hearing),
+        'Location': case_.location || 'N/A',
+        'Plaintiff': plaintiff,
+        'Defendant': defendant,
+        'Charges': charges,
+        'Case URL': case_.case_url || ''
+      };
+    });
+    
+    const csv = Papa.unparse(csvData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `court_cases_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportPDF = () => {
+    const doc = new jsPDF({ orientation: 'landscape' });
+    
+    // Add title
+    doc.setFontSize(20);
+    doc.text('Justice Watch - Court Cases Report', 14, 15);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 22);
+    doc.text(`Total Cases: ${cases.length}`, 14, 28);
+    
+    // Prepare table data
+    const tableData = cases.map(case_ => {
+      // Parse JSON fields safely
+      let charges = '';
+      
+      try {
+        const docket = typeof case_.docket_entries === 'string' ? JSON.parse(case_.docket_entries) : case_.docket_entries;
+        if (Array.isArray(docket)) {
+          const chargeEntries = docket.filter(d => d.type === 'charge');
+          charges = chargeEntries.map(c => c.ars_code).join(', ');
+        }
+      } catch (e) {
+        // Silent fail
+      }
+      
+      return [
+        case_.case_number,
+        case_.case_title.length > 30 ? case_.case_title.substring(0, 30) + '...' : case_.case_title,
+        case_.court_name.replace(' Justice Court', ''),
+        case_.judge || 'N/A',
+        case_.case_type,
+        case_.case_status,
+        formatDate(case_.filing_date),
+        formatDate(case_.next_hearing),
+        charges
+      ];
+    });
+    
+    // Add table
+    (doc as any).autoTable({
+      head: [['Case #', 'Title', 'Court', 'Judge', 'Type', 'Status', 'Filed', 'Next Hearing', 'Charges']],
+      body: tableData,
+      startY: 35,
+      styles: {
+        fontSize: 8,
+        cellPadding: 1
+      },
+      columnStyles: {
+        0: { cellWidth: 25 },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 25 },
+        3: { cellWidth: 25 },
+        4: { cellWidth: 20 },
+        5: { cellWidth: 20 },
+        6: { cellWidth: 22 },
+        7: { cellWidth: 22 },
+        8: { cellWidth: 30 }
+      }
+    });
+    
+    // Save the PDF
+    doc.save(`court_cases_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
   if (loading) {
     return <div className="loading">Loading...</div>;
   }
@@ -216,6 +338,12 @@ function CasesDashboard() {
         </button>
         <button onClick={loadData} className="refresh-btn">
           🔄 Refresh
+        </button>
+        <button onClick={handleExportCSV} className="export-btn csv-btn" disabled={cases.length === 0}>
+          📊 Export CSV
+        </button>
+        <button onClick={handleExportPDF} className="export-btn pdf-btn" disabled={cases.length === 0}>
+          📄 Export PDF
         </button>
       </div>
 
