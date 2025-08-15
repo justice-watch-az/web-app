@@ -34,6 +34,13 @@ Transform Justice Watch from a monolithic scraper-with-UI into a decoupled archi
 └────────────────────────┴─────────────────────────────────┘
 ```
 
+### Key Architecture Points:
+- **No direct connection between scraper and app** - they only share the database
+- **Scraper writes** to database with timestamp metadata
+- **App reads** from database and displays last updated time
+- Both services are completely independent and can be deployed/scaled separately
+- **Embeddable** - App configured to allow iframe embedding in other websites
+
 ## Phase 1: Data Model Enhancement
 
 ### Current Data Capture (Limited)
@@ -169,7 +176,7 @@ Transform Justice Watch from a monolithic scraper-with-UI into a decoupled archi
   // Metadata
   metadata: {
     first_scraped: "2024-01-15T10:30:00Z",
-    last_updated: "2024-02-15T08:00:00Z",
+    last_updated: "2024-02-15T08:00:00Z",  // This is what displays in UI
     update_count: 12,
     data_quality_score: 0.95,
     missing_fields: ["defendant.dob"],
@@ -364,6 +371,55 @@ services:
 </ExportCenter>
 ```
 
+#### 5. Embeddable Widget Options
+```html
+<!-- Full Dashboard Embed -->
+<iframe 
+  src="https://justicewatchaz.com/embed/dashboard"
+  width="100%" 
+  height="800px"
+  frameborder="0">
+</iframe>
+
+<!-- Compact Stats Widget -->
+<iframe 
+  src="https://justicewatchaz.com/embed/stats?theme=light"
+  width="400px" 
+  height="300px"
+  frameborder="0">
+</iframe>
+
+<!-- Today's Hearings Widget -->
+<iframe 
+  src="https://justicewatchaz.com/embed/today?court=all"
+  width="600px" 
+  height="400px"
+  frameborder="0">
+</iframe>
+
+<!-- Custom Search Widget -->
+<iframe 
+  src="https://justicewatchaz.com/embed/search?filters=arraignments"
+  width="100%" 
+  height="600px"
+  frameborder="0">
+</iframe>
+```
+
+#### Widget Configuration Options
+```javascript
+// Embed URL Parameters
+{
+  theme: 'light' | 'dark' | 'auto',
+  courts: 'all' | ['agua_fria', 'arcadia', ...],
+  view: 'cards' | 'table' | 'compact',
+  filters: 'none' | 'minimal' | 'full',
+  header: 'show' | 'hide',
+  refresh: 'auto' | 'manual',
+  interval: 300000  // Auto-refresh in ms
+}
+```
+
 ## Phase 4: API Enhancement
 
 ### RESTful Endpoints
@@ -387,6 +443,12 @@ GET /api/analytics/comparisons  // Comparative analysis
 // Real-time
 WS /api/realtime/updates       // Live case updates
 WS /api/realtime/hearings      // Today's hearing feed
+
+// Embed Endpoints
+GET /embed/dashboard            // Full embeddable dashboard
+GET /embed/stats               // Statistics widget
+GET /embed/today               // Today's hearings widget
+GET /embed/search              // Search interface widget
 ```
 
 ### GraphQL Alternative
@@ -451,14 +513,15 @@ const alerts = {
 ## Implementation Timeline
 
 ### Week 1-2: Data Model & Scraper Enhancement
-- [ ] Design comprehensive data schema
+- [ ] Design comprehensive data schema with last_updated tracking
 - [ ] Implement deep extraction methods
 - [ ] Add multi-page navigation
 - [ ] Create validation layer
+- [ ] Update scraper to write timestamp metadata on each run
 
 ### Week 3-4: Cron Job & Infrastructure
-- [ ] Dockerize enhanced scraper
-- [ ] Deploy cron job on Akash
+- [ ] Dockerize enhanced scraper as standalone service
+- [ ] Deploy cron job on Akash (separate from web app)
 - [ ] Implement retry/recovery logic
 - [ ] Set up monitoring/alerts
 
@@ -467,12 +530,15 @@ const alerts = {
 - [ ] Implement caching layer
 - [ ] Add WebSocket support
 - [ ] Build analytics endpoints
+- [ ] Configure CORS and CSP headers to allow embedding in iframes
 
 ### Week 7-8: Frontend Transformation
 - [ ] Remove scraping UI
 - [ ] Build dashboard components
 - [ ] Implement search/filter
 - [ ] Create visualizations
+- [ ] Add responsive design for iframe embedding
+- [ ] Create embeddable widget version with customizable size
 
 ### Week 9-10: Analytics & Polish
 - [ ] Add predictive models
@@ -507,6 +573,7 @@ const alerts = {
 - **Data volume growth**: Scalable architecture, pagination
 - **Scraping blocks**: Rate limiting, rotating IPs
 - **Data inconsistency**: Validation layer, quality checks
+- **Iframe security**: Proper CSP and X-Frame-Options configuration
 
 ### Legal/Compliance
 - **Data privacy**: No PII storage, anonymization options
