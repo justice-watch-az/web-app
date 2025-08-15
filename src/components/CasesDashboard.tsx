@@ -75,6 +75,7 @@ function CasesDashboard() {
   const [selectedStatus, setSelectedStatus] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<{start: Date | null, end: Date | null}>({start: null, end: null});
   const [showCourtDropdown, setShowCourtDropdown] = useState(false);
+  const [activeTab, setActiveTab] = useState<'cases' | 'analytics'>('cases');
 
   useEffect(() => {
     loadData();
@@ -448,23 +449,51 @@ function CasesDashboard() {
         <h1>Justice Watch AZ - Maricopa County Arraignment Monitor</h1>
       </header>
 
-      {/* Stats Bar */}
-      {statistics && (
-        <div className="stats-bar">
-          <div className="stat-item">
-            <div className="stat-value">{statistics.summary.total_cases}</div>
-            <div className="stat-label">Total Cases</div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-value">{statistics.summary.total_courts}</div>
-            <div className="stat-label">Courts Active</div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-value">{statistics.summary.upcoming_hearings}</div>
-            <div className="stat-label">Upcoming Hearings</div>
-          </div>
-        </div>
-      )}
+      {/* Floating Action Bar - Bottom Right */}
+      <div className="floating-action-bar">
+        <button 
+          onClick={() => setHideOldCases(!hideOldCases)} 
+          className={`fab-btn toggle-btn ${hideOldCases ? 'active' : ''}`}
+          title={hideOldCases ? 'Show All Cases' : 'Hide Old Cases'}
+        >
+          {hideOldCases ? '👁️' : '🚫'}
+          <span className="fab-label">{hideOldCases ? 'Show All' : 'Hide Old'}</span>
+        </button>
+        <button 
+          onClick={handleExportCSV} 
+          className="fab-btn csv-btn" 
+          disabled={cases.length === 0}
+          title="Export to CSV"
+        >
+          📊
+          <span className="fab-label">CSV</span>
+        </button>
+        <button 
+          onClick={handleExportPDF} 
+          className="fab-btn pdf-btn" 
+          disabled={cases.length === 0}
+          title="Export to PDF"
+        >
+          📄
+          <span className="fab-label">PDF</span>
+        </button>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="tab-navigation">
+        <button 
+          className={`tab-button ${activeTab === 'cases' ? 'active' : ''}`}
+          onClick={() => setActiveTab('cases')}
+        >
+          📋 Cases
+        </button>
+        <button 
+          className={`tab-button ${activeTab === 'analytics' ? 'active' : ''}`}
+          onClick={() => setActiveTab('analytics')}
+        >
+          📊 Analytics
+        </button>
+      </div>
 
       {/* Search and Filter Section */}
       <div className="search-filter-section">
@@ -559,83 +588,35 @@ function CasesDashboard() {
           )}
         </div>
       </div>
-      
-      {/* Charts Section */}
-      <div className="charts-section">
-        <div className="chart-container">
-          <h3>Cases by Court</h3>
-          <Bar 
-            data={courtChartData}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: { display: false },
-                title: { display: false }
-              },
-              scales: {
-                y: { beginAtZero: true }
-              }
-            }}
-            height={250}
-          />
-        </div>
-        
-        <div className="chart-container">
-          <h3>Upcoming Hearings (Next 30 Days)</h3>
-          <Line 
-            data={getTimelineData()}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: { display: false }
-              },
-              scales: {
-                y: { beginAtZero: true }
-              }
-            }}
-            height={250}
-          />
-        </div>
-        
-        <div className="chart-container">
-          <h3>Case Status Distribution</h3>
-          <Doughnut 
-            data={statusChartData}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: { position: 'bottom' as const }
-              }
-            }}
-            height={250}
-          />
-        </div>
-      </div>
 
-      {/* Action Bar */}
-      <div className="action-bar">
-        <button onClick={loadData} className="refresh-btn">
-          🔄 Refresh
-        </button>
-        <button 
-          onClick={() => setHideOldCases(!hideOldCases)} 
-          className={`toggle-btn ${hideOldCases ? 'active' : ''}`}
-        >
-          {hideOldCases ? '👁️ Show All' : '🚫 Hide Old'}
-        </button>
-        <button onClick={handleExportCSV} className="export-btn csv-btn" disabled={cases.length === 0}>
-          📊 Export CSV
-        </button>
-        <button onClick={handleExportPDF} className="export-btn pdf-btn" disabled={cases.length === 0}>
-          📄 Export PDF
-        </button>
-      </div>
+      {/* Tab Content */}
+      {activeTab === 'cases' ? (
+        /* Cases Tab Content */
+        <div className="cases-tab">
+          {/* Stats Bar for Cases Tab */}
+          {statistics && (
+            <div className="stats-bar">
+              <div className="stat-item">
+                <div className="stat-value">{statistics.summary.total_cases}</div>
+                <div className="stat-label">Total Cases</div>
+              </div>
+              <div className="stat-item">
+                <div className="stat-value">{statistics.summary.total_courts}</div>
+                <div className="stat-label">Courts Active</div>
+              </div>
+              <div className="stat-item">
+                <div className="stat-value">{statistics.summary.upcoming_hearings}</div>
+                <div className="stat-label">Upcoming Hearings</div>
+              </div>
+              <div className="stat-item">
+                <div className="stat-value">{filteredCases.length}</div>
+                <div className="stat-label">Filtered Results</div>
+              </div>
+            </div>
+          )}
 
-      {/* Cases Grid */}
-      <div className="cases-container">
+          {/* Cases Grid - The main content */}
+          <div className="cases-container">
         {/* Future Cases */}
         {sortedFutureDates.length > 0 && (
           <>
@@ -777,7 +758,117 @@ function CasesDashboard() {
             </div>
           </div>
         )}
-      </div>
+          </div>
+        </div>
+      ) : (
+          /* Analytics Tab Content */
+          <div className="analytics-tab">
+            {/* Charts Section */}
+            <div className="charts-section">
+              <div className="chart-container">
+                <h3>Cases by Court</h3>
+                <Bar 
+                  data={courtChartData}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: { display: false },
+                      title: { display: false }
+                    },
+                    scales: {
+                      y: { beginAtZero: true }
+                    }
+                  }}
+                  height={250}
+                />
+              </div>
+              
+              <div className="chart-container">
+                <h3>Upcoming Hearings (Next 30 Days)</h3>
+                <Line 
+                  data={getTimelineData()}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: { display: false }
+                    },
+                    scales: {
+                      y: { beginAtZero: true }
+                    }
+                  }}
+                  height={250}
+                />
+              </div>
+              
+              <div className="chart-container">
+                <h3>Case Status Distribution</h3>
+                <Doughnut 
+                  data={statusChartData}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: { position: 'bottom' as const }
+                    }
+                  }}
+                  height={250}
+                />
+              </div>
+            </div>
+
+            {/* Stats Grid for Analytics */}
+            {statistics && (
+              <div className="analytics-stats-grid">
+                <div className="stat-card">
+                  <h3>Total Cases</h3>
+                  <div className="stat-value-large">{statistics.summary.total_cases}</div>
+                </div>
+                <div className="stat-card">
+                  <h3>Active Courts</h3>
+                  <div className="stat-value-large">{statistics.summary.total_courts}</div>
+                </div>
+                <div className="stat-card">
+                  <h3>Upcoming Hearings</h3>
+                  <div className="stat-value-large">{statistics.summary.upcoming_hearings}</div>
+                </div>
+                <div className="stat-card">
+                  <h3>Filtered Results</h3>
+                  <div className="stat-value-large">{filteredCases.length}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Court Distribution Table */}
+            {statistics && statistics.courtDistribution && (
+              <div className="court-distribution-table">
+                <h3>Cases by Court - Detailed View</h3>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Court</th>
+                      <th>Cases</th>
+                      <th>Percentage</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statistics.courtDistribution.map((court, index) => {
+                      const percentage = ((parseInt(court.case_count) / cases.length) * 100).toFixed(1);
+                      return (
+                        <tr key={index}>
+                          <td>{court.court_name}</td>
+                          <td>{court.case_count}</td>
+                          <td>{percentage}%</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
       {/* Case Details Modal */}
       {selectedCase && (

@@ -1103,6 +1103,210 @@
   flex: 1;
 }
 
+/* Tab Navigation */
+.tab-navigation {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: white;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.tab-button {
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  font-weight: 500;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+  transition: all 0.3s;
+  color: #6b7280;
+}
+
+.tab-button:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.tab-button.active {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  border-color: transparent;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(99, 102, 241, 0.2);
+}
+
+
+/* Analytics Tab */
+.analytics-tab {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.analytics-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin: 2rem 0;
+}
+
+.analytics-stats-grid .stat-card {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.stat-value-large {
+  font-size: 3rem;
+  font-weight: bold;
+  color: #1f2937;
+  line-height: 1;
+  margin-top: 0.5rem;
+}
+
+.court-distribution-table {
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-top: 2rem;
+}
+
+.court-distribution-table h3 {
+  margin: 0 0 1rem 0;
+  color: #1f2937;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.court-distribution-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.court-distribution-table th {
+  background: #f5f5f5;
+  padding: 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  color: #666;
+  border-bottom: 2px solid #ddd;
+}
+
+.court-distribution-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #eee;
+}
+
+.court-distribution-table tr:hover {
+  background: #f9f9f9;
+}
+
+/* Floating Action Bar */
+.floating-action-bar {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  z-index: 999;
+}
+
+.fab-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: none;
+  font-size: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s;
+  position: relative;
+  overflow: visible;
+}
+
+.fab-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+.fab-btn:hover .fab-label {
+  opacity: 1;
+  transform: translateX(-120%) translateY(-50%);
+}
+
+.fab-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.fab-btn:disabled:hover {
+  transform: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.fab-label {
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateX(-100%) translateY(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  opacity: 0;
+  transition: all 0.3s;
+  pointer-events: none;
+  margin-right: 0.5rem;
+}
+
+.fab-btn.toggle-btn {
+  background: white;
+  border: 2px solid #9ca3af;
+  color: #4b5563;
+}
+
+.fab-btn.toggle-btn:hover {
+  background: #f3f4f6;
+  border-color: #6b7280;
+}
+
+.fab-btn.toggle-btn.active {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: white;
+  border: none;
+}
+
+.fab-btn.csv-btn {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+}
+
+.fab-btn.csv-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #059669, #047857);
+}
+
+.fab-btn.pdf-btn {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+}
+
+.fab-btn.pdf-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+}
+
 /* Mobile Responsive */
 @media (max-width: 768px) {
   .charts-section {
@@ -1128,5 +1332,35 @@
   
   .chart-container {
     min-height: 250px;
+  }
+  
+  .tab-navigation {
+    flex-wrap: wrap;
+  }
+  
+  .tab-button {
+    flex: 1;
+    min-width: 120px;
+  }
+  
+  .analytics-stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .floating-action-bar {
+    bottom: 1rem;
+    right: 1rem;
+    flex-direction: row;
+    gap: 0.75rem;
+  }
+  
+  .fab-btn {
+    width: 56px;
+    height: 56px;
+    font-size: 1.25rem;
+  }
+  
+  .fab-label {
+    display: none;
   }
 }
