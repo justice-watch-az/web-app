@@ -2,7 +2,34 @@ import React, { useState, useEffect } from 'react';
 import Papa from 'papaparse';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { matchSorter } from 'match-sorter';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  ArcElement,
+  LineElement,
+  PointElement,
+  Title,
+  Tooltip,
+  Legend
+} from 'chart.js';
+import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import './Dashboard.css';
+
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  ArcElement,
+  LineElement,
+  PointElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 interface CaseSummary {
   id: number;
@@ -43,6 +70,11 @@ function CasesDashboard() {
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [hideOldCases, setHideOldCases] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCourts, setSelectedCourts] = useState<string[]>([]);
+  const [selectedStatus, setSelectedStatus] = useState<string[]>([]);
+  const [dateRange, setDateRange] = useState<{start: Date | null, end: Date | null}>({start: null, end: null});
+  const [showCourtDropdown, setShowCourtDropdown] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -119,17 +151,54 @@ function CasesDashboard() {
     });
   };
 
-  // Filter cases based on hideOldCases setting
+  // Enhanced filtering logic
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   
-  const filteredCases = hideOldCases 
-    ? cases.filter(case_ => {
-        if (!case_.next_hearing) return true; // Keep cases with no date
+  const getFilteredCases = () => {
+    let filtered = cases;
+    
+    // Apply search
+    if (searchQuery) {
+      filtered = matchSorter(filtered, searchQuery, {
+        keys: ['case_number', 'case_title', 'judge', 'court_name']
+      });
+    }
+    
+    // Apply court filter
+    if (selectedCourts.length > 0) {
+      filtered = filtered.filter(c => selectedCourts.includes(c.court_name));
+    }
+    
+    // Apply status filter
+    if (selectedStatus.length > 0) {
+      filtered = filtered.filter(c => selectedStatus.includes(c.case_status));
+    }
+    
+    // Apply date range
+    if (dateRange.start || dateRange.end) {
+      filtered = filtered.filter(c => {
+        if (!c.next_hearing) return false;
+        const hearingDate = new Date(c.next_hearing);
+        if (dateRange.start && hearingDate < dateRange.start) return false;
+        if (dateRange.end && hearingDate > dateRange.end) return false;
+        return true;
+      });
+    }
+    
+    // Apply existing hideOldCases filter
+    if (hideOldCases) {
+      filtered = filtered.filter(case_ => {
+        if (!case_.next_hearing) return true;
         const hearingDate = new Date(case_.next_hearing);
         return hearingDate >= today;
-      })
-    : cases;
+      });
+    }
+    
+    return filtered;
+  };
+  
+  const filteredCases = getFilteredCases();
 
   // Separate future and past cases
   const futureCases: CaseSummary[] = [];
@@ -298,6 +367,77 @@ function CasesDashboard() {
     doc.save(`court_cases_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
+  // Prepare chart data
+  const courtChartData = {
+    labels: statistics?.courtDistribution.slice(0, 10).map(c => c.court_name.replace(' Justice Court', '')) || [],
+    datasets: [{
+      label: 'Cases by Court',
+      data: statistics?.courtDistribution.slice(0, 10).map(c => parseInt(c.case_count)) || [],
+      backgroundColor: 'rgba(99, 102, 241, 0.5)',
+      borderColor: 'rgba(99, 102, 241, 1)',
+      borderWidth: 1
+    }]
+  };
+  
+  // Timeline chart data (next 30 days)
+  const getTimelineData = () => {
+    const dates = new Map<string, number>();
+    const next30Days = new Date();
+    next30Days.setDate(next30Days.getDate() + 30);
+    
+    filteredCases.forEach(case_ => {
+      if (case_.next_hearing) {
+        const hearingDate = new Date(case_.next_hearing);
+        if (hearingDate <= next30Days && hearingDate >= today) {
+          const dateStr = hearingDate.toISOString().split('T')[0];
+          dates.set(dateStr, (dates.get(dateStr) || 0) + 1);
+        }
+      }
+    });
+    
+    const sortedDates = Array.from(dates.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    
+    return {
+      labels: sortedDates.map(([date]) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
+      datasets: [{
+        label: 'Hearings',
+        data: sortedDates.map(([, count]) => count),
+        borderColor: 'rgb(118, 75, 162)',
+        backgroundColor: 'rgba(118, 75, 162, 0.5)',
+        tension: 0.1
+      }]
+    };
+  };
+  
+  // Status distribution
+  const statusChartData = {
+    labels: ['Active', 'Closed', 'Pending', 'Other'],
+    datasets: [{
+      data: [
+        filteredCases.filter(c => c.case_status === 'Active').length,
+        filteredCases.filter(c => c.case_status === 'Closed').length,
+        filteredCases.filter(c => c.case_status === 'Pending').length,
+        filteredCases.filter(c => !['Active', 'Closed', 'Pending'].includes(c.case_status)).length
+      ],
+      backgroundColor: [
+        'rgba(34, 197, 94, 0.5)',
+        'rgba(239, 68, 68, 0.5)',
+        'rgba(251, 191, 36, 0.5)',
+        'rgba(156, 163, 175, 0.5)'
+      ],
+      borderColor: [
+        'rgba(34, 197, 94, 1)',
+        'rgba(239, 68, 68, 1)',
+        'rgba(251, 191, 36, 1)',
+        'rgba(156, 163, 175, 1)'
+      ],
+      borderWidth: 1
+    }]
+  };
+
+  // Get unique courts for filter dropdown
+  const uniqueCourts = Array.from(new Set(cases.map(c => c.court_name))).sort();
+
   if (loading) {
     return <div className="loading">Loading...</div>;
   }
@@ -325,6 +465,155 @@ function CasesDashboard() {
           </div>
         </div>
       )}
+
+      {/* Search and Filter Section */}
+      <div className="search-filter-section">
+        <div className="search-container">
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Search cases, titles, judges, courts..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <span className="search-results">
+            Showing {filteredCases.length} of {cases.length} cases
+          </span>
+        </div>
+        
+        <div className="filter-container">
+          {/* Court Filter */}
+          <div className="filter-group">
+            <label>Courts</label>
+            <div className="filter-dropdown">
+              <button 
+                className="filter-button"
+                onClick={() => setShowCourtDropdown(!showCourtDropdown)}
+              >
+                {selectedCourts.length > 0 
+                  ? `${selectedCourts.length} selected` 
+                  : 'All Courts'}
+              </button>
+              {showCourtDropdown && (
+                <div className="filter-dropdown-content">
+                  {uniqueCourts.map(court => (
+                    <label key={court}>
+                      <input
+                        type="checkbox"
+                        checked={selectedCourts.includes(court)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedCourts([...selectedCourts, court]);
+                          } else {
+                            setSelectedCourts(selectedCourts.filter(c => c !== court));
+                          }
+                        }}
+                      />
+                      <span>{court}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Status Filter */}
+          <div className="filter-group">
+            <label>Status</label>
+            <div className="filter-buttons">
+              {['Active', 'Closed', 'Pending'].map(status => (
+                <button
+                  key={status}
+                  className={`filter-pill ${selectedStatus.includes(status) ? 'active' : ''}`}
+                  onClick={() => {
+                    if (selectedStatus.includes(status)) {
+                      setSelectedStatus(selectedStatus.filter(s => s !== status));
+                    } else {
+                      setSelectedStatus([...selectedStatus, status]);
+                    }
+                  }}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          {/* Clear Filters */}
+          {(searchQuery || selectedCourts.length > 0 || selectedStatus.length > 0) && (
+            <button 
+              className="clear-filters-btn"
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedCourts([]);
+                setSelectedStatus([]);
+                setDateRange({start: null, end: null});
+              }}
+            >
+              Clear Filters ({
+                (searchQuery ? 1 : 0) + 
+                selectedCourts.length + 
+                selectedStatus.length
+              })
+            </button>
+          )}
+        </div>
+      </div>
+      
+      {/* Charts Section */}
+      <div className="charts-section">
+        <div className="chart-container">
+          <h3>Cases by Court</h3>
+          <Bar 
+            data={courtChartData}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                title: { display: false }
+              },
+              scales: {
+                y: { beginAtZero: true }
+              }
+            }}
+            height={250}
+          />
+        </div>
+        
+        <div className="chart-container">
+          <h3>Upcoming Hearings (Next 30 Days)</h3>
+          <Line 
+            data={getTimelineData()}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false }
+              },
+              scales: {
+                y: { beginAtZero: true }
+              }
+            }}
+            height={250}
+          />
+        </div>
+        
+        <div className="chart-container">
+          <h3>Case Status Distribution</h3>
+          <Doughnut 
+            data={statusChartData}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { position: 'bottom' as const }
+              }
+            }}
+            height={250}
+          />
+        </div>
+      </div>
 
       {/* Action Bar */}
       <div className="action-bar">
