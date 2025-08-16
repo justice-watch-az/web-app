@@ -380,6 +380,88 @@ class DatabaseHandler:
             logger.error(f"Error getting stats: {e}")
             return {}
     
+    def case_exists(self, case_number: str) -> bool:
+        """Check if a case exists in the database."""
+        try:
+            self.cursor.execute(
+                "SELECT COUNT(*) FROM cases WHERE case_number = %s",
+                (case_number,)
+            )
+            result = self.cursor.fetchone()
+            return result[0] > 0 if result else False
+        except Exception as e:
+            logger.error(f"Error checking case existence: {e}")
+            return False
+    
+    def update_case(self, case_number: str, updates: Dict[str, Any]) -> bool:
+        """Update an existing case."""
+        try:
+            # Build update query dynamically
+            set_clause = ", ".join([f"{k} = %s" for k in updates.keys()])
+            values = list(updates.values()) + [case_number]
+            
+            self.cursor.execute(
+                f"UPDATE cases SET {set_clause}, updated_at = NOW() WHERE case_number = %s",
+                values
+            )
+            self.connection.commit()
+            
+            return self.cursor.rowcount > 0
+        except Exception as e:
+            logger.error(f"Error updating case: {e}")
+            self.connection.rollback()
+            return False
+    
+    def delete_case(self, case_number: str) -> bool:
+        """Delete a case and all related data."""
+        try:
+            # Start transaction
+            self.connection.autocommit = False
+            
+            # Get case ID
+            self.cursor.execute(
+                "SELECT id FROM cases WHERE case_number = %s",
+                (case_number,)
+            )
+            result = self.cursor.fetchone()
+            
+            if not result:
+                self.connection.autocommit = True
+                return False
+            
+            case_id = result[0]
+            
+            # Delete related data in order
+            tables = [
+                'case_calendar', 'case_charges', 'case_parties',
+                'case_history', 'case_hearings', 'case_minutes',
+                'case_documents', 'case_raw_data'
+            ]
+            
+            for table in tables:
+                self.cursor.execute(
+                    f"DELETE FROM {table} WHERE case_id = %s",
+                    (case_id,)
+                )
+            
+            # Delete the case itself
+            self.cursor.execute(
+                "DELETE FROM cases WHERE id = %s",
+                (case_id,)
+            )
+            
+            self.connection.commit()
+            self.connection.autocommit = True
+            
+            logger.info(f"Successfully deleted case {case_number}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error deleting case: {e}")
+            self.connection.rollback()
+            self.connection.autocommit = True
+            return False
+    
     def close(self):
         """Close database connection."""
         if self.cursor:

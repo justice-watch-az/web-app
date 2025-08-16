@@ -23,8 +23,19 @@ interface ApiResponse {
   error?: string;
 }
 
+// Safe hook that works both in Router and standalone contexts
+const useQueryParams = () => {
+  try {
+    const [searchParams] = useSearchParams();
+    return searchParams;
+  } catch {
+    // Fallback for non-router context (standalone widget)
+    return new URLSearchParams(window.location.search);
+  }
+};
+
 export const ArraignmentsWidget: React.FC = () => {
-  const [searchParams] = useSearchParams();
+  const searchParams = useQueryParams();
   const [data, setData] = useState<ArraignmentData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

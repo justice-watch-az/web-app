@@ -86,7 +86,7 @@ export const WidgetGallery: React.FC = () => {
       </div>
 
       <div className="gallery-content">
-        <div className="configurator-section">
+        <div className="configurator-section widget-configurator">
           <h2>Configure Your Widget</h2>
           
           <div className="config-group">

@@ -3,6 +3,17 @@ const router = express.Router();
 const logger = require('../utils/logger');
 const { pool } = require('../database');
 
+// CORS headers for widget endpoints
+router.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, X-Widget-Version');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 // Widget data endpoint for arraignments
 router.get('/data/arraignments', async (req, res) => {
   try {

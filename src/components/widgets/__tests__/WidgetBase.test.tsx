@@ -6,6 +6,7 @@ describe('WidgetBase', () => {
   beforeEach(() => {
     // Mock postMessage
     window.parent.postMessage = jest.fn();
+    window.postMessage = jest.fn();
   });
 
   it('renders with default props', () => {
@@ -36,7 +37,7 @@ describe('WidgetBase', () => {
       </WidgetBase>
     );
     
-    expect(container.firstChild).toHaveClass('widget-container', 'size-card');
+    expect(container.firstChild).toHaveClass('widget-container', 'widget-card', 'size-card');
   });
 
   it('sends WIDGET_LOADED message on mount', () => {
@@ -66,6 +67,6 @@ describe('WidgetBase', () => {
       </WidgetBase>
     );
     
-    expect(container.textContent).toContain('Something went wrong');
+    expect(container.textContent).toContain('Unable to load widget');
   });
 });

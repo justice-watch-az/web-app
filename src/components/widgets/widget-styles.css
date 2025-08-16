@@ -32,6 +32,17 @@
   max-height: 600px;
 }
 
+/* Size variants for test compatibility */
+.size-card {
+  max-width: 350px;
+  min-height: 200px;
+}
+
+.size-dashboard {
+  max-width: 100%;
+  min-height: 400px;
+}
+
 /* Theme Variants */
 .theme-light {
   --widget-bg: #ffffff;

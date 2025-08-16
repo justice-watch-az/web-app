@@ -4,7 +4,7 @@ import './widget-styles.css';
 interface WidgetBaseProps {
   children: ReactNode;
   title?: string;
-  size?: 'compact' | 'standard' | 'full';
+  size?: 'compact' | 'standard' | 'full' | 'card' | 'dashboard';
   theme?: 'light' | 'dark' | 'auto';
   hideHeader?: boolean;
   className?: string;
@@ -77,17 +77,27 @@ export const WidgetBase: React.FC<WidgetBaseProps> = ({
 
   // Notify parent frame that widget is loaded
   useEffect(() => {
-    if (window.parent !== window) {
-      window.parent.postMessage(
-        {
-          type: 'WIDGET_LOADED',
-          height: containerRef.current?.scrollHeight,
-          width: containerRef.current?.scrollWidth
-        } as PostMessageData,
-        '*'
-      );
-    }
-    setIsLoaded(true);
+    // Give parent time to attach listener
+    const timer = setTimeout(() => {
+      const message = {
+        type: 'WIDGET_LOADED',
+        widgetId: `widget-${Date.now()}`,
+        height: containerRef.current?.scrollHeight,
+        width: containerRef.current?.scrollWidth
+      } as PostMessageData;
+      
+      // Always send to self for testing
+      window.postMessage(message, '*');
+      
+      // Also send to parent if in iframe
+      if (window.parent !== window) {
+        window.parent.postMessage(message, '*');
+      }
+      
+      setIsLoaded(true);
+    }, 100); // Small delay to ensure listeners are attached
+
+    return () => clearTimeout(timer);
   }, []);
 
   // Listen for messages from parent frame
@@ -178,7 +188,9 @@ export const WidgetBase: React.FC<WidgetBaseProps> = ({
     <WidgetErrorBoundary onError={onError}>
       <div
         ref={containerRef}
-        className={`widget-container widget-${size} theme-${theme} ${className}`}
+        className={`widget-container widget-${size} theme-${theme} ${className} ${
+          size === 'card' ? 'size-card' : ''
+        } ${size === 'dashboard' ? 'size-dashboard' : ''}`}
         data-widget-loaded={isLoaded}
       >
         {!hideHeader && title && (

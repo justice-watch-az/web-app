@@ -24,7 +24,12 @@ export default defineConfig({
     sourcemap: true,
     minify: 'terser',
     rollupOptions: {
+      input: {
+        main: './index.html',
+        widget: './src/widget-entry.tsx'
+      },
       output: {
+        entryFileNames: 'assets/[name].js',
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],
           charts: ['chart.js', 'react-chartjs-2'],

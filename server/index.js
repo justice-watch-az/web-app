@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
+const fs = require('fs');
 // const morgan = require('morgan'); // Not installed
 const rateLimit = require('express-rate-limit');
 const logger = require('./utils/logger');
@@ -170,6 +171,27 @@ const widgetRateLimiter = rateLimit({
 
 app.use('/api/widgets', widgetRateLimiter);
 
+// Widget standalone routes - MUST be before any other routes
+app.get('/widgets/:widgetType', (req, res) => {
+  const { widgetType } = req.params;
+  
+  console.log(`Serving widget HTML for type: ${widgetType}`); // Debug log
+  
+  // Read the widget template
+  let widgetHtml = fs.readFileSync(
+    path.join(__dirname, '../widget.html'), 
+    'utf8'
+  );
+  
+  // Replace placeholders
+  widgetHtml = widgetHtml
+    .replace(/{{WIDGET_TYPE}}/g, widgetType)
+    .replace('{{WIDGET_PARAMS}}', JSON.stringify(req.query))
+    .replace('{{WIDGET_PARAMS_JSON}}', JSON.stringify(req.query));
+  
+  res.send(widgetHtml);
+});
+
 // Routes
 app.use('/api', apiRoutes);
 app.use('/api/scraping', scrapingRoutes);
@@ -177,16 +199,21 @@ app.use('/api/cases', casesRoutes);
 app.use('/api/cron', cronRoutes);
 app.use('/api/widgets', widgetRoutes);
 
-// Serve static files (including for development)
-app.use(express.static('dist'));
-
-// Handle widget routes by serving the React app
-app.get('/widgets/*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../dist/index.html'));
+// Serve static files (including for development) - but exclude /widgets path
+app.use((req, res, next) => {
+  // Skip static file serving for /widgets routes
+  if (req.path.startsWith('/widgets/')) {
+    return next();
+  }
+  express.static('dist')(req, res, next);
 });
 
-// Catch-all route for React app
+// Catch-all route for React app (but not for /widgets routes)
 app.get('*', (req, res) => {
+  // Don't catch /widgets routes
+  if (req.path.startsWith('/widgets/')) {
+    return res.status(404).send('Widget not found');
+  }
   res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 

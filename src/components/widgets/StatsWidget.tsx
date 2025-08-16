@@ -156,7 +156,7 @@ export const StatsWidget: React.FC = () => {
   return (
     <WidgetBase
       title={config.title}
-      size={config.size === 'card' ? 'compact' : 'full'}
+      size={config.size as any} // Pass through the size directly (card or dashboard)
       theme={config.theme}
       hideHeader={config.hideHeader}
       className="stats-widget"
