@@ -1,0 +1,21 @@
+{
+  "timestamp": "2025-08-16T01:10:17.942118",
+  "search_params": {
+    "search_type": "arraignment",
+    "start_date": "08/16/2025",
+    "end_date": "08/16/2025"
+  },
+  "courts": {
+    "Arrowhead": [],
+    "Agua Fria": [],
+    "Arcadia Biltmore": []
+  },
+  "summary": {
+    "total_courts": 3,
+    "total_cases": 0,
+    "valid_cases": 0,
+    "errors": [],
+    "duration": "60.44 seconds",
+    "cases_per_second": 0.0
+  }
+}
