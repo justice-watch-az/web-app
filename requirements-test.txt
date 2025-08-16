@@ -1,0 +1,27 @@
+# Testing dependencies for Python
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.1
+pytest-asyncio>=0.21.1
+pytest-timeout>=2.1.0
+pytest-xdist>=3.3.1
+pytest-selenium>=4.0.1
+
+# Selenium E2E testing
+selenium>=4.15.0
+webdriver-manager>=4.0.1
+
+# Mocking and fixtures
+faker>=19.2.0
+factory-boy>=3.3.0
+responses>=0.23.3
+
+# Code quality
+black>=23.7.0
+flake8>=6.1.0
+mypy>=1.5.0
+pylint>=2.17.5
+
+# Benchmarking
+memory-profiler>=0.61.0
+line-profiler>=4.1.0

@@ -1,15 +1,28 @@
 {
   "compilerOptions": {
-    "target": "ESNext",
-    "module": "commonjs",
+    "target": "ES2020",
+    "module": "ESNext",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
     "allowJs": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "noImplicitAny": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
     "sourceMap": true,
     "baseUrl": ".",
-    "outDir": "dist",
-    "moduleResolution": "node",
-    "resolveJsonModule": true
-  }
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    "types": ["vite/client", "node", "jest"]
+  },
+  "include": ["src/**/*", "server/**/*"],
+  "exclude": ["node_modules", "dist", "build", "venv"]
 }
