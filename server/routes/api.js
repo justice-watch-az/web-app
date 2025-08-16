@@ -87,8 +87,8 @@ router.get('/cases/statistics', async (req, res) => {
       SELECT 
         COUNT(*) as total_cases,
         COUNT(DISTINCT judge) as total_judges,
-        COUNT(CASE WHEN status = 'Open' THEN 1 END) as open_cases,
-        COUNT(CASE WHEN status = 'Closed' THEN 1 END) as closed_cases
+        COUNT(CASE WHEN case_status = 'Open' THEN 1 END) as open_cases,
+        COUNT(CASE WHEN case_status = 'Closed' THEN 1 END) as closed_cases
       FROM cases
     `);
     
@@ -106,8 +106,8 @@ router.get('/stats', async (req, res) => {
       SELECT 
         COUNT(*) as total_cases,
         COUNT(DISTINCT judge) as total_judges,
-        COUNT(CASE WHEN status = 'Open' THEN 1 END) as open_cases,
-        COUNT(CASE WHEN status = 'Closed' THEN 1 END) as closed_cases,
+        COUNT(CASE WHEN case_status = 'Open' THEN 1 END) as open_cases,
+        COUNT(CASE WHEN case_status = 'Closed' THEN 1 END) as closed_cases,
         COUNT(CASE WHEN filing_date >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as recent_cases
       FROM cases
     `);

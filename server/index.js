@@ -11,7 +11,6 @@ const apiRoutes = require('./routes/api');
 const scrapingRoutes = require('./routes/scraping');
 const casesRoutes = require('./routes/cases');
 const cronRoutes = require('./routes/cron');
-const widgetRoutes = require('./routes/widgets');
 const schedulerService = require('./services/scheduler');
 const errorHandler = require('./middleware/errorHandler');
 const { initDatabase } = require('./database');
@@ -62,40 +61,7 @@ app.use(helmet({
   },
 }));
 
-// Enhanced CORS configuration for widgets
-const corsOptions = {
-  origin: function (origin, callback) {
-    // Widget-specific allowed origins
-    const widgetAllowedOrigins = process.env.WIDGET_ALLOWED_ORIGINS?.split(',') || ['*'];
-    const widgetAllowedPatterns = process.env.WIDGET_ALLOWED_PATTERNS?.split(',') || [];
-    
-    // Allow requests with no origin (same-origin, Postman, etc.)
-    if (!origin) {
-      callback(null, true);
-      return;
-    }
-    
-    // Check exact matches
-    if (widgetAllowedOrigins.includes('*') || widgetAllowedOrigins.includes(origin)) {
-      callback(null, true);
-      return;
-    }
-    
-    // Check pattern matches (e.g., *.example.com)
-    const isAllowed = widgetAllowedPatterns.some(pattern => {
-      const regex = new RegExp(pattern.replace('*', '.*'));
-      return regex.test(origin);
-    });
-    
-    callback(isAllowed ? null : new Error('Not allowed by CORS'), isAllowed);
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Widget-Version'],
-  exposedHeaders: ['X-RateLimit-Remaining', 'X-RateLimit-Reset']
-};
-
-// Apply CORS to all routes initially
+// Apply CORS to all routes
 app.use(cors({
   origin: true, // Allow all origins for main app
   credentials: true,
@@ -125,95 +91,18 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Widget-specific middleware for /widgets and /api/widgets routes
-app.use('/widgets', cors(corsOptions));
-app.use('/api/widgets', cors(corsOptions));
-
-// CSP Headers for widget routes - allow framing
-app.use('/widgets', (req, res, next) => {
-  // Allow framing from specific origins
-  const frameAncestors = process.env.FRAME_ANCESTORS || "'self' http://localhost:* https://*.example.com";
-  res.setHeader('Content-Security-Policy', `frame-ancestors ${frameAncestors}`);
-  
-  // Remove X-Frame-Options for widget routes (conflicts with CSP)
-  res.removeHeader('X-Frame-Options');
-  
-  // Add widget-specific headers
-  res.setHeader('X-Widget-Version', '1.0.0');
-  
-  next();
-});
-
-// Widget-specific rate limiting per domain
-const widgetRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each domain to 100 requests per windowMs
-  keyGenerator: (req) => {
-    // Use referer domain as key
-    const referer = req.get('referer');
-    if (referer) {
-      try {
-        const url = new URL(referer);
-        return url.hostname;
-      } catch (e) {
-        return req.ip;
-      }
-    }
-    return req.ip;
-  },
-  handler: (req, res) => {
-    res.status(429).json({
-      error: 'Too many requests from this domain',
-      retryAfter: req.rateLimit.resetTime
-    });
-  }
-});
-
-app.use('/api/widgets', widgetRateLimiter);
-
-// Widget standalone routes - MUST be before any other routes
-app.get('/widgets/:widgetType', (req, res) => {
-  const { widgetType } = req.params;
-  
-  console.log(`Serving widget HTML for type: ${widgetType}`); // Debug log
-  
-  // Read the widget template
-  let widgetHtml = fs.readFileSync(
-    path.join(__dirname, '../widget.html'), 
-    'utf8'
-  );
-  
-  // Replace placeholders
-  widgetHtml = widgetHtml
-    .replace(/{{WIDGET_TYPE}}/g, widgetType)
-    .replace('{{WIDGET_PARAMS}}', JSON.stringify(req.query))
-    .replace('{{WIDGET_PARAMS_JSON}}', JSON.stringify(req.query));
-  
-  res.send(widgetHtml);
-});
 
 // Routes
 app.use('/api', apiRoutes);
 app.use('/api/scraping', scrapingRoutes);
 app.use('/api/cases', casesRoutes);
 app.use('/api/cron', cronRoutes);
-app.use('/api/widgets', widgetRoutes);
 
-// Serve static files (including for development) - but exclude /widgets path
-app.use((req, res, next) => {
-  // Skip static file serving for /widgets routes
-  if (req.path.startsWith('/widgets/')) {
-    return next();
-  }
-  express.static('dist')(req, res, next);
-});
+// Serve static files (including for development)
+app.use(express.static('dist'));
 
-// Catch-all route for React app (but not for /widgets routes)
+// Catch-all route for React app
 app.get('*', (req, res) => {
-  // Don't catch /widgets routes
-  if (req.path.startsWith('/widgets/')) {
-    return res.status(404).send('Widget not found');
-  }
   res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 

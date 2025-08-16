@@ -24,10 +24,7 @@ export default defineConfig({
     sourcemap: true,
     minify: 'terser',
     rollupOptions: {
-      input: {
-        main: './index.html',
-        widget: './src/widget-entry.tsx'
-      },
+      input: './index.html',
       output: {
         entryFileNames: 'assets/[name].js',
         manualChunks: {

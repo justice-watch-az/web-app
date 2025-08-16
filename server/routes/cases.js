@@ -16,18 +16,14 @@ router.get('/all', async (req, res) => {
         court_name,
         case_title,
         case_type,
-        status as case_status,
+        case_status AS status,
         filing_date,
         judge,
         location,
         case_url,
         scraped_at,
         updated_at,
-        next_hearing,
-        parties,
-        docket_entries,
-        events,
-        documents
+        next_hearing
       FROM cases
       ORDER BY updated_at DESC NULLS LAST, id DESC
       LIMIT 100

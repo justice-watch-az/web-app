@@ -4,7 +4,6 @@ import CasesDashboard from './components/CasesDashboard';
 import { ScheduleManager } from './components/ScheduleManager';
 import { ScheduleManagerDebug } from './components/ScheduleManagerDebug';
 import { ScheduleManagerSimple } from './components/ScheduleManagerSimple';
-import { WidgetRoutes } from './routes/WidgetRoutes';
 import './App.css';
 
 function App() {
@@ -15,7 +14,6 @@ function App() {
         <Route path="/scheduler" element={<ScheduleManager />} />
         <Route path="/scheduler-debug" element={<ScheduleManagerDebug />} />
         <Route path="/scheduler-simple" element={<ScheduleManagerSimple />} />
-        <Route path="/widgets/*" element={<WidgetRoutes />} />
         <Route path="/" element={<Navigate to="/cases" />} />
       </Routes>
     </Router>
