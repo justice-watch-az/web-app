@@ -1,14 +1,24 @@
 const { Pool } = require('pg');
 const logger = require('../utils/logger');
 
-// Force Supabase SDK usage when Supabase is configured
+// Support both local and cloud Supabase
 let pool;
-if (process.env.SUPABASE_URL || process.env.DATABASE_URL?.includes('supabase')) {
-  logger.info('Using Supabase SDK for database connection');
-  const supabaseClient = require('./supabase-client');
-  pool = supabaseClient.pool;
+const isLocalDev = process.env.NODE_ENV === 'development' && process.env.DATABASE_URL?.includes('127.0.0.1');
+
+if (process.env.DATABASE_URL || process.env.SUPABASE_URL) {
+  // Use connection string if provided (works for both local and cloud Supabase)
+  const poolConfig = {
+    connectionString: process.env.DATABASE_URL || process.env.SUPABASE_DB_URL,
+    ssl: isLocalDev ? false : { rejectUnauthorized: false },
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
+  };
+  
+  pool = new Pool(poolConfig);
+  logger.info(`Database connection: ${isLocalDev ? 'Local Supabase' : 'Cloud Database'}`);
 } else {
-  // Local PostgreSQL only
+  // Fallback to individual config params
   const poolConfig = {
     host: process.env.DB_HOST || 'localhost',
     port: process.env.DB_PORT || 5432,

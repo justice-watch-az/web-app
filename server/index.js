@@ -8,6 +8,8 @@ const logger = require('./utils/logger');
 const apiRoutes = require('./routes/api');
 const scrapingRoutes = require('./routes/scraping');
 const casesRoutes = require('./routes/cases');
+const cronRoutes = require('./routes/cron');
+const schedulerService = require('./services/scheduler');
 const errorHandler = require('./middleware/errorHandler');
 const { initDatabase } = require('./database');
 const { initQueue } = require('./queue');
@@ -82,6 +84,7 @@ app.get('/health', (req, res) => {
 app.use('/api', apiRoutes);
 app.use('/api/scraping', scrapingRoutes);
 app.use('/api/cases', casesRoutes);
+app.use('/api/cron', cronRoutes);
 
 // Serve React app for all other routes in production
 if (process.env.NODE_ENV === 'production') {
@@ -98,11 +101,35 @@ async function startServer() {
   try {
     await initDatabase();
     
-    
     await initQueue(io);  // Pass io instance to queue
+    
+    // Initialize scheduler if enabled
+    if (process.env.CRON_ENABLED !== 'false') {
+      await schedulerService.init(io);
+      logger.info('Cron scheduler service started');
+      
+      // Handle scheduler events
+      schedulerService.on('schedule-activated', (data) => {
+        io.emit('schedule-activated', data);
+      });
+      
+      schedulerService.on('schedule-execution-started', (data) => {
+        io.emit('schedule-execution-started', data);
+      });
+      
+      schedulerService.on('schedule-execution-completed', (data) => {
+        io.emit('schedule-execution-completed', data);
+      });
+      
+      schedulerService.on('schedule-execution-failed', (data) => {
+        io.emit('schedule-execution-failed', data);
+      });
+    }
     
     server.listen(PORT, () => {  // Use server instead of app
       logger.info(`Server running on port ${PORT}`);
+      logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.info(`Cron Scheduler: ${process.env.CRON_ENABLED !== 'false' ? 'Enabled' : 'Disabled'}`);
     });
   } catch (error) {
     logger.error('Failed to start server:', error);
@@ -111,3 +138,17 @@ async function startServer() {
 }
 
 startServer();
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  logger.info('SIGTERM received, shutting down gracefully');
+  
+  if (schedulerService.isRunning) {
+    await schedulerService.shutdown();
+  }
+  
+  server.close(() => {
+    logger.info('Server closed');
+    process.exit(0);
+  });
+});
