@@ -2,6 +2,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const logger = require('../utils/logger');
 const { saveCaseToDatabase } = require('./db-handler-simple');
+const cache = require('../cache');
 
 let scrapingQueue = null;
 let io = null;
@@ -192,6 +193,17 @@ async function initQueue(socketIo) {
                 totalCases: result.arraignment_cases?.length || 0,
                 totalCourts: result.stats?.courts_discovered || 0
               });
+            }
+            
+            // Invalidate related caches after successful scraping
+            try {
+              await cache.invalidate('cases');
+              await cache.invalidate('dashboard');
+              await cache.invalidate('statistics');
+              await cache.invalidate('search');
+              logger.info('Cache invalidated after successful scraping');
+            } catch (cacheError) {
+              logger.error('Failed to invalidate cache:', cacheError);
             }
             
             resolve(result);

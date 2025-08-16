@@ -14,6 +14,14 @@ const errorHandler = require('./middleware/errorHandler');
 const { initDatabase } = require('./database');
 const { initQueue } = require('./queue');
 
+// GraphQL imports
+const { ApolloServer } = require('@apollo/server');
+const { expressMiddleware } = require('@apollo/server/express4');
+const { ApolloServerPluginDrainHttpServer } = require('@apollo/server/plugin/drainHttpServer');
+const responseCachePlugin = require('@apollo/server-plugin-response-cache').default;
+const typeDefs = require('./graphql/schema');
+const { resolvers, createCaseLoader } = require('./graphql/resolvers');
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -86,6 +94,46 @@ app.use('/api/scraping', scrapingRoutes);
 app.use('/api/cases', casesRoutes);
 app.use('/api/cron', cronRoutes);
 
+// Apollo Server setup function
+let apolloServer;
+async function startApolloServer() {
+  apolloServer = new ApolloServer({
+    typeDefs,
+    resolvers,
+    plugins: [
+      ApolloServerPluginDrainHttpServer({ httpServer: server }),
+      responseCachePlugin({
+        sessionId: (requestContext) => {
+          // Use session ID if available, otherwise 'public'
+          const headers = requestContext.request.http?.headers;
+          return headers?.get('x-session-id') || 'public';
+        },
+      }),
+    ],
+    introspection: process.env.NODE_ENV !== 'production',
+  });
+  
+  await apolloServer.start();
+  
+  // Add GraphQL endpoint alongside REST
+  app.use(
+    '/graphql',
+    cors(),
+    express.json(),
+    expressMiddleware(apolloServer, {
+      context: async ({ req }) => ({ 
+        req,
+        // Add DataLoader to context
+        caseLoader: createCaseLoader(),
+        // Add user context if auth is implemented
+        user: req.user || null,
+      }),
+    })
+  );
+  
+  logger.info('🚀 GraphQL server ready at /graphql');
+}
+
 // Serve React app for all other routes in production
 if (process.env.NODE_ENV === 'production') {
   app.get('*', (req, res) => {
@@ -102,6 +150,9 @@ async function startServer() {
     await initDatabase();
     
     await initQueue(io);  // Pass io instance to queue
+    
+    // Start Apollo Server for GraphQL
+    await startApolloServer();
     
     // Initialize scheduler if enabled
     if (process.env.CRON_ENABLED !== 'false') {
