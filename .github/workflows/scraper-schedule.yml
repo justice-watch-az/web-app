@@ -38,15 +38,11 @@ jobs:
         run: |
           pip install -r requirements.txt
           
-      - name: Setup Chrome for Selenium
-        uses: browser-actions/setup-chrome@latest
-        with:
-          chrome-version: stable
-          
-      - name: Setup ChromeDriver
-        uses: browser-actions/setup-chromedriver@latest
-        with:
-          chromedriver-version: stable
+      - name: Setup Chrome and ChromeDriver
+        run: |
+          # Chrome is pre-installed on Ubuntu GitHub runners
+          # Install ChromeDriver using webdriver-manager in Python
+          pip install webdriver-manager
           
       - name: Run arraignment scraper
         env:

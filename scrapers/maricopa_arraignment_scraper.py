@@ -64,14 +64,25 @@ class MaricopaArraignmentScraper:
             options.binary_location = os.environ.get('CHROME_BIN')
         
         try:
-            # In Docker, use the correct chromedriver path
+            # Try to find chromedriver locally first
             if os.path.exists('/usr/local/bin/chromedriver'):
                 chromedriver_path = '/usr/local/bin/chromedriver'
+                service = Service(chromedriver_path)
             elif os.path.exists('/usr/bin/chromedriver'):
                 chromedriver_path = '/usr/bin/chromedriver'
+                service = Service(chromedriver_path)
+            elif os.environ.get('CHROMEDRIVER_PATH'):
+                service = Service(os.environ.get('CHROMEDRIVER_PATH'))
             else:
-                chromedriver_path = os.environ.get('CHROMEDRIVER_PATH', 'chromedriver')
-            service = Service(chromedriver_path)
+                # Use webdriver-manager if available
+                try:
+                    from webdriver_manager.chrome import ChromeDriverManager
+                    service = Service(ChromeDriverManager().install())
+                    logger.info("Using webdriver-manager for ChromeDriver")
+                except ImportError:
+                    logger.warning("webdriver-manager not available, using system chromedriver")
+                    service = Service('chromedriver')
+                    
             self.driver = webdriver.Chrome(service=service, options=options)
             self.driver.set_page_load_timeout(30)
             logger.info("WebDriver initialized")

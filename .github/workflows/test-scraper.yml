@@ -24,15 +24,11 @@ jobs:
           python --version
           pip install -r requirements.txt
           
-      - name: Setup Chrome for testing
-        uses: browser-actions/setup-chrome@latest
-        with:
-          chrome-version: stable
-          
-      - name: Setup ChromeDriver for testing
-        uses: browser-actions/setup-chromedriver@latest
-        with:
-          chromedriver-version: stable
+      - name: Setup Chrome and ChromeDriver for testing
+        run: |
+          # Chrome is pre-installed on Ubuntu GitHub runners
+          # Install ChromeDriver using webdriver-manager in Python
+          pip install webdriver-manager
           
       - name: Test scraper import
         run: |
