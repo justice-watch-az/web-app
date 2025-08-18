@@ -71,7 +71,7 @@ class SupabaseWriter:
                 # Prepare case data for Supabase
                 case_data = {
                     'case_number': case.get('case_number'),
-                    'court_id': case.get('court_id', '').lower().replace(' justice court', '').replace(' ', '_'),
+                    # 'court_id': case.get('court_id', '').lower().replace(' justice court', '').replace(' ', '_'),  # Removed - not in cloud schema
                     'court_name': case.get('court_name'),
                     'case_title': case.get('case_title'),
                     'case_type': case.get('case_type', 'Criminal Traffic'),
