@@ -1,6 +1,9 @@
 name: Scheduled Court Scraper
 
 on:
+  push:
+    branches:
+      - feature/v3-serverless-migration
   schedule:
     # Monday-Friday at 9 AM MST/Arizona (4 PM UTC)
     # Arizona doesn't observe DST, so it's always UTC-7

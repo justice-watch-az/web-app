@@ -1,6 +1,9 @@
 name: Test Scraper Setup
 
 on:
+  push:
+    branches:
+      - feature/v3-serverless-migration
   workflow_dispatch:
 
 jobs:
