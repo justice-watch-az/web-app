@@ -1,0 +1,42 @@
+# Netlify Configuration for Justice Watch
+
+[build]
+  # Build command for React app
+  command = "npm run build"
+  
+  # Directory to deploy (Vite output)
+  publish = "dist"
+  
+  # Node version
+  environment = { NODE_VERSION = "18" }
+
+# Redirect all routes to index.html for React Router
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# API proxy to Supabase (no backend needed!)
+[[redirects]]
+  from = "/api/*"
+  to = "https://YOUR_PROJECT_ID.supabase.co/:splat"
+  status = 200
+  headers = {X-Custom-Header = "Justice-Watch"}
+
+# Environment variables (set in Netlify dashboard)
+[build.environment]
+  VITE_SUPABASE_URL = "YOUR_SUPABASE_URL"
+  VITE_SUPABASE_ANON_KEY = "YOUR_ANON_KEY"
+
+# Serverless functions directory
+[functions]
+  directory = "netlify/functions"
+
+# Headers for security
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer-when-downgrade"

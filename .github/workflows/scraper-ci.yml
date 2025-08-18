@@ -1,0 +1,200 @@
+name: Scraper CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, development ]
+    paths:
+      - 'scrapers/**'
+      - 'Dockerfile.scraper'
+      - '.github/workflows/scraper-ci.yml'
+  pull_request:
+    branches: [ main, development ]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+env:
+  DOCKER_IMAGE: justice-scraper
+  DOCKER_REGISTRY: docker.io
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: Log in to Docker Hub
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: Build Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        file: ./Dockerfile.scraper
+        push: false
+        tags: |
+          ${{ env.DOCKER_IMAGE }}:test
+          ${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        outputs: type=docker,dest=/tmp/scraper-image.tar
+    
+    - name: Upload Docker image
+      uses: actions/upload-artifact@v3
+      with:
+        name: docker-image
+        path: /tmp/scraper-image.tar
+        retention-days: 1
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: justice_watch_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Download Docker image
+      uses: actions/download-artifact@v3
+      with:
+        name: docker-image
+        path: /tmp
+    
+    - name: Load Docker image
+      run: docker load --input /tmp/scraper-image.tar
+    
+    - name: Test mock scraper
+      run: |
+        docker run --rm ${{ env.DOCKER_IMAGE }}:test /app/scrapers/mock_scraper.py
+    
+    - name: Test Python environment
+      run: |
+        docker run --rm ${{ env.DOCKER_IMAGE }}:test -c "import selenium; print('Selenium OK')"
+    
+    - name: Test Chrome installation
+      run: |
+        docker run --rm ${{ env.DOCKER_IMAGE }}:test -c "import subprocess; subprocess.run(['google-chrome', '--version'], check=True)"
+    
+    - name: Run integration tests
+      run: |
+        docker run --rm \
+          --network host \
+          -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/justice_watch_test \
+          -e REDIS_HOST=localhost \
+          -e REDIS_PORT=6379 \
+          -e HEADLESS=true \
+          -e TEST_MODE=true \
+          ${{ env.DOCKER_IMAGE }}:test \
+          /app/scrapers/test_scraper_integration.py
+      continue-on-error: true
+
+  validate-supabase:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Download Docker image
+      uses: actions/download-artifact@v3
+      with:
+        name: docker-image
+        path: /tmp
+    
+    - name: Load Docker image
+      run: docker load --input /tmp/scraper-image.tar
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install Supabase client
+      run: pip install supabase
+    
+    - name: Validate with Supabase
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      run: |
+        python3 validate_scraped_data.py
+      continue-on-error: true
+
+  push:
+    needs: [test, validate-supabase]
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Download Docker image
+      uses: actions/download-artifact@v3
+      with:
+        name: docker-image
+        path: /tmp
+    
+    - name: Load Docker image
+      run: docker load --input /tmp/scraper-image.tar
+    
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: Push to Docker Hub
+      run: |
+        docker tag ${{ env.DOCKER_IMAGE }}:test ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:latest
+        docker tag ${{ env.DOCKER_IMAGE }}:test ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+        docker push ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:latest
+        docker push ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+
+  deploy:
+    needs: push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Deploy notification
+      run: |
+        echo "🚀 New scraper image deployed: ${{ github.sha }}"
+        echo "Image: ${{ secrets.DOCKER_USERNAME }}/${{ env.DOCKER_IMAGE }}:${{ github.sha }}"
+        # Add deployment webhook or notification here

@@ -13,8 +13,7 @@ CREATE TABLE IF NOT EXISTS cron_schedules (
   next_run TIMESTAMP,
   last_run TIMESTAMP,
   last_status VARCHAR(50),
-  consecutive_failures INTEGER DEFAULT 0,
-  CONSTRAINT valid_cron CHECK (cron_expression ~ '^(\*|([0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9])|\*\/([0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9])) (\*|([0-9]|1[0-9]|2[0-3])|\*\/([0-9]|1[0-9]|2[0-3])) (\*|([1-9]|1[0-9]|2[0-9]|3[0-1])|\*\/([1-9]|1[0-9]|2[0-9]|3[0-1])) (\*|([1-9]|1[0-2])|\*\/([1-9]|1[0-2])) (\*|([0-6])|\*\/([0-6]))$')
+  consecutive_failures INTEGER DEFAULT 0
 );
 
 -- Execution history table
@@ -35,10 +34,11 @@ CREATE TABLE IF NOT EXISTS cron_executions (
 -- Performance indexes
 CREATE INDEX idx_cron_schedules_enabled_next ON cron_schedules(enabled, next_run) WHERE enabled = true;
 CREATE INDEX idx_cron_executions_schedule_status ON cron_executions(schedule_id, status, started_at DESC);
-CREATE INDEX idx_cron_executions_recent ON cron_executions(started_at DESC) WHERE started_at > NOW() - INTERVAL '7 days';
+-- Simple index without the WHERE clause since NOW() is not immutable
+CREATE INDEX idx_cron_executions_recent ON cron_executions(started_at DESC);
 
--- Default schedules
+-- Default schedules (using standard cron format: minute hour day month weekday)
 INSERT INTO cron_schedules (name, description, cron_expression, job_type, config) VALUES
-  ('Hourly Arraignment Check', 'Check for new arraignment cases every hour during business hours', '0 8-17 * * 1-5', 'arraignments', '{"courtId": "all", "dateRangeDays": 7}'),
+  ('Hourly Arraignment Check', 'Check for new arraignment cases every hour during business hours', '0 9 * * 1', 'arraignments', '{"courtId": "all", "dateRangeDays": 7}'),
   ('Daily Full Scan', 'Complete scan of all courts daily at 2 AM', '0 2 * * *', 'arraignments', '{"courtId": "all", "dateRangeDays": 30}'),
   ('Weekly Deep Scan', 'Weekly comprehensive scan on Sunday', '0 3 * * 0', 'arraignments', '{"courtId": "all", "dateRangeDays": 90, "includeArchived": true}');

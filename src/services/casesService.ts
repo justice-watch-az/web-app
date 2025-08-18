@@ -1,0 +1,253 @@
+import { supabase } from './supabase';
+import type { 
+  CaseWithRelations, 
+  CaseSummary, 
+  Statistics 
+} from '../types/database';
+
+/**
+ * Cases Service - Handles all case-related data operations
+ */
+
+// Get cases with related data
+export const getCases = async (
+  limit = 100, 
+  offset = 0
+): Promise<CaseWithRelations[]> => {
+  const { data, error } = await supabase
+    .from('cases')
+    .select(`
+      *,
+      case_parties (*),
+      case_charges (*),
+      case_calendar (*)
+    `)
+    .order('scraped_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    console.error('Error fetching cases:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+// Search cases by various criteria
+export const searchCases = async (
+  searchTerm: string
+): Promise<CaseWithRelations[]> => {
+  const { data, error } = await supabase
+    .from('cases')
+    .select(`
+      *,
+      case_parties (*),
+      case_charges (*),
+      case_calendar (*)
+    `)
+    .or(`
+      case_number.ilike.%${searchTerm}%,
+      case_title.ilike.%${searchTerm}%,
+      court_name.ilike.%${searchTerm}%,
+      judge.ilike.%${searchTerm}%
+    `)
+    .order('scraped_at', { ascending: false })
+    .limit(100);
+
+  if (error) {
+    console.error('Error searching cases:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+// Get cases by court
+export const getCasesByCourt = async (
+  courtName: string
+): Promise<CaseWithRelations[]> => {
+  const { data, error } = await supabase
+    .from('cases')
+    .select(`
+      *,
+      case_parties (*),
+      case_charges (*),
+      case_calendar (*)
+    `)
+    .eq('court_name', courtName)
+    .order('next_hearing', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching cases by court:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+// Get cases with upcoming hearings
+export const getUpcomingHearings = async (
+  days = 7
+): Promise<CaseWithRelations[]> => {
+  const futureDate = new Date();
+  futureDate.setDate(futureDate.getDate() + days);
+
+  const { data, error } = await supabase
+    .from('cases')
+    .select(`
+      *,
+      case_parties (*),
+      case_charges (*),
+      case_calendar (*)
+    `)
+    .gte('next_hearing', new Date().toISOString())
+    .lte('next_hearing', futureDate.toISOString())
+    .order('next_hearing', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching upcoming hearings:', error);
+    throw error;
+  }
+
+  return data || [];
+};
+
+// Get statistics for dashboard
+export const getStatistics = async (): Promise<Statistics> => {
+  try {
+    // Get total cases count
+    const { count: totalCases } = await supabase
+      .from('cases')
+      .select('*', { count: 'exact', head: true });
+
+    // Get cases by court
+    const { data: courtData } = await supabase
+      .from('cases')
+      .select('court_name')
+      .not('court_name', 'is', null);
+
+    const casesByCourt: Record<string, number> = {};
+    courtData?.forEach(row => {
+      const court = row.court_name || 'Unknown';
+      casesByCourt[court] = (casesByCourt[court] || 0) + 1;
+    });
+
+    // Get cases by type
+    const { data: typeData } = await supabase
+      .from('cases')
+      .select('case_type')
+      .not('case_type', 'is', null);
+
+    const casesByType: Record<string, number> = {};
+    typeData?.forEach(row => {
+      const type = row.case_type || 'Unknown';
+      casesByType[type] = (casesByType[type] || 0) + 1;
+    });
+
+    // Get recent cases (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const { count: recentCases } = await supabase
+      .from('cases')
+      .select('*', { count: 'exact', head: true })
+      .gte('scraped_at', sevenDaysAgo.toISOString());
+
+    // Get upcoming hearings count
+    const { count: upcomingHearings } = await supabase
+      .from('cases')
+      .select('*', { count: 'exact', head: true })
+      .gte('next_hearing', new Date().toISOString());
+
+    return {
+      total_cases: totalCases || 0,
+      cases_by_court: casesByCourt,
+      cases_by_type: casesByType,
+      recent_cases: recentCases || 0,
+      upcoming_hearings: upcomingHearings || 0
+    };
+  } catch (error) {
+    console.error('Error fetching statistics:', error);
+    return {
+      total_cases: 0,
+      cases_by_court: {},
+      cases_by_type: {},
+      recent_cases: 0,
+      upcoming_hearings: 0
+    };
+  }
+};
+
+// Get last scrape information
+export const getLastScrapeInfo = async () => {
+  const { data, error } = await supabase
+    .from('scrape_logs')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (error && error.code !== 'PGRST116') { // Ignore "no rows" error
+    console.error('Error fetching last scrape info:', error);
+  }
+
+  return data;
+};
+
+// Subscribe to new cases (real-time)
+export const subscribeToCaseUpdates = (
+  callback: (payload: any) => void
+) => {
+  const channel = supabase
+    .channel('case-updates')
+    .on(
+      'postgres_changes',
+      { 
+        event: '*', 
+        schema: 'public', 
+        table: 'cases' 
+      },
+      callback
+    )
+    .subscribe();
+
+  // Return cleanup function
+  return () => {
+    supabase.removeChannel(channel);
+  };
+};
+
+// Transform case data for legacy component compatibility
+export const transformToLegacyFormat = (
+  cases: CaseWithRelations[]
+): CaseSummary[] => {
+  return cases.map(caseData => {
+    // Format parties as JSON string (legacy format)
+    const parties = {
+      plaintiff: caseData.case_parties?.find(p => p.party_type === 'plaintiff'),
+      defendant: caseData.case_parties?.find(p => p.party_type === 'defendant')
+    };
+
+    // Format docket entries as JSON string (legacy format)
+    const docketEntries = caseData.case_charges?.map(charge => ({
+      type: 'charge',
+      ars_code: charge.ars_code,
+      description: charge.description,
+      date: charge.crime_date
+    })) || [];
+
+    return {
+      case_number: caseData.case_number,
+      court_name: caseData.court_name || '',
+      case_title: caseData.case_title || '',
+      case_type: caseData.case_type || '',
+      status: caseData.status || '',
+      filing_date: caseData.filing_date || '',
+      judge: caseData.judge || '',
+      location: caseData.location || '',
+      next_hearing: caseData.next_hearing,
+      parties: JSON.stringify(parties),
+      docket_entries: JSON.stringify(docketEntries)
+    };
+  });
+};

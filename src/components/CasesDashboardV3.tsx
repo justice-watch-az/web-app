@@ -1,0 +1,773 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import Papa from 'papaparse';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { matchSorter } from 'match-sorter';
+import './CasesDashboardV3.css';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  ArcElement,
+  LineElement,
+  PointElement,
+  Title,
+  Tooltip,
+  Legend
+} from 'chart.js';
+import { Bar, Doughnut, Line } from 'react-chartjs-2';
+import './Dashboard.css';
+
+// Import Supabase services
+import { 
+  getCases, 
+  searchCases, 
+  getStatistics,
+  subscribeToCaseUpdates,
+  transformToLegacyFormat 
+} from '../services/casesService';
+import {
+  groupCasesByDate,
+  formatDate,
+  formatTime,
+  parseParties,
+  parseDocketEntries,
+  filterCases,
+  sortCases,
+  generateCSV
+} from '../utils/dataTransforms';
+import type { CaseWithRelations, Statistics } from '../types/database';
+
+// Import new real-time components
+import { realtimeService } from '../services/realtimeService';
+import { NotificationSystem, notifyInfo, notifySuccess, notifyWarning, notifyError } from './NotificationSystem';
+import { ConnectionStatus } from './ConnectionStatus';
+
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  ArcElement,
+  LineElement,
+  PointElement,
+  Title,
+  Tooltip,
+  Legend
+);
+
+function CasesDashboardV3() {
+  const [cases, setCases] = useState<CaseWithRelations[]>([]);
+  const [selectedCase, setSelectedCase] = useState<CaseWithRelations | null>(null);
+  const [statistics, setStatistics] = useState<Statistics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [hideOldCases, setHideOldCases] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCourts, setSelectedCourts] = useState<string[]>([]);
+  const [selectedStatus, setSelectedStatus] = useState<string[]>([]);
+  const [dateRange, setDateRange] = useState<{start: Date | null, end: Date | null}>({start: null, end: null});
+  const [showCourtDropdown, setShowCourtDropdown] = useState(false);
+  const [activeTab, setActiveTab] = useState<'cases' | 'analytics'>('cases');
+  const [error, setError] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'date' | 'court'>('date');
+
+  useEffect(() => {
+    loadData();
+    
+    // Setup enhanced real-time subscriptions
+    const unsubscribers: (() => void)[] = [];
+    
+    // Subscribe to cases table
+    unsubscribers.push(
+      realtimeService.subscribeToTable('cases', {
+        onInsert: (newCase) => {
+          setCases(prev => {
+            // Check if case already exists
+            if (prev.find(c => c.id === newCase.id)) return prev;
+            
+            // Add new case with animation flag
+            const caseWithRelations = { ...newCase, isNew: true } as CaseWithRelations;
+            notifyInfo('New Case', `Case ${newCase.case_number} has been added`);
+            
+            // Remove animation flag after animation completes
+            setTimeout(() => {
+              setCases(prevCases => prevCases.map(c => 
+                c.id === newCase.id ? { ...c, isNew: false } as CaseWithRelations : c
+              ));
+            }, 500);
+            
+            return [caseWithRelations, ...prev];
+          });
+          
+          // Update statistics
+          loadStatistics();
+        },
+        
+        onUpdate: (updatedCase, oldCase) => {
+          setCases(prev => prev.map(c => 
+            c.id === updatedCase.id ? { ...updatedCase, isUpdated: true } as CaseWithRelations : c
+          ));
+          
+          // Notify on important changes
+          if (oldCase.status !== updatedCase.status) {
+            notifyInfo('Status Changed', 
+              `Case ${updatedCase.case_number} status: ${updatedCase.status}`);
+          }
+          
+          if (oldCase.next_hearing !== updatedCase.next_hearing) {
+            notifyWarning('Hearing Updated', 
+              `Case ${updatedCase.case_number} hearing rescheduled`);
+          }
+          
+          // Remove update flag after animation
+          setTimeout(() => {
+            setCases(prev => prev.map(c => 
+              c.id === updatedCase.id ? { ...c, isUpdated: false } as CaseWithRelations : c
+            ));
+          }, 500);
+        },
+        
+        onDelete: (deletedCase) => {
+          setCases(prev => prev.filter(c => c.id !== deletedCase.id));
+          notifyWarning('Case Removed', `Case ${deletedCase.case_number} has been removed`);
+        },
+        
+        onError: (error) => {
+          console.error('Real-time error:', error);
+          notifyError('Connection Error', 'Real-time updates temporarily unavailable');
+        }
+      })
+    );
+    
+    // Subscribe to case_parties table
+    unsubscribers.push(
+      realtimeService.subscribeToTable('case_parties', {
+        event: '*',
+        onInsert: (party) => updateCaseParties(party.case_id),
+        onUpdate: (party) => updateCaseParties(party.case_id),
+        onDelete: (party) => updateCaseParties(party.case_id)
+      })
+    );
+    
+    // Subscribe to case_charges table
+    unsubscribers.push(
+      realtimeService.subscribeToTable('case_charges', {
+        event: '*',
+        onInsert: (charge) => updateCaseCharges(charge.case_id),
+        onUpdate: (charge) => updateCaseCharges(charge.case_id),
+        onDelete: (charge) => updateCaseCharges(charge.case_id)
+      })
+    );
+    
+    // Subscribe to case_calendar table
+    unsubscribers.push(
+      realtimeService.subscribeToTable('case_calendar', {
+        event: '*',
+        onInsert: (event) => updateCaseCalendar(event.case_id),
+        onUpdate: (event) => updateCaseCalendar(event.case_id),
+        onDelete: (event) => updateCaseCalendar(event.case_id)
+      })
+    );
+    
+    // Subscribe to scrape_logs for system status
+    unsubscribers.push(
+      realtimeService.subscribeToTable('scrape_logs', {
+        event: 'INSERT',
+        onInsert: (log) => {
+          if (log.status === 'started') {
+            notifyInfo('Scraping Started', 'Fetching latest case information...');
+          } else if (log.status === 'completed') {
+            notifySuccess('Scraping Complete', 
+              `Found ${log.cases_found} cases, processed ${log.cases_processed}`);
+            // Reload data after successful scrape
+            loadData();
+          } else if (log.status === 'failed') {
+            notifyError('Scraping Failed', log.error_message || 'Unknown error occurred');
+          }
+        }
+      })
+    );
+
+    return () => {
+      // Cleanup all subscriptions
+      unsubscribers.forEach(unsubscribe => unsubscribe());
+    };
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Fetch cases and statistics from Supabase
+      const [casesData, statsData] = await Promise.all([
+        getCases(500), // Get up to 500 cases
+        getStatistics()
+      ]);
+      
+      setCases(casesData);
+      setStatistics(statsData);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      setError('Failed to load cases. Please refresh the page.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const loadStatistics = async () => {
+    try {
+      const statsData = await getStatistics();
+      setStatistics(statsData);
+    } catch (error) {
+      console.error('Error loading statistics:', error);
+    }
+  };
+  
+  // Helper functions for updating related data
+  const updateCaseParties = async (caseId: string) => {
+    // In a real implementation, you would fetch just the updated parties
+    // For now, we'll reload the specific case
+    console.log(`Updating parties for case ${caseId}`);
+  };
+  
+  const updateCaseCharges = async (caseId: string) => {
+    // In a real implementation, you would fetch just the updated charges
+    console.log(`Updating charges for case ${caseId}`);
+  };
+  
+  const updateCaseCalendar = async (caseId: string) => {
+    // In a real implementation, you would fetch just the updated calendar events
+    console.log(`Updating calendar for case ${caseId}`);
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      loadData();
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const results = await searchCases(searchQuery);
+      setCases(results);
+    } catch (error) {
+      console.error('Search error:', error);
+      setError('Search failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Filter cases based on UI selections
+  const groupCasesByDate = (casesToGroup: CaseWithRelations[]) => {
+    const grouped: Record<string, CaseWithRelations[]> = {};
+    
+    casesToGroup.forEach(caseItem => {
+      const dateKey = caseItem.next_hearing 
+        ? new Date(caseItem.next_hearing).toDateString()
+        : 'No Date';
+      
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = [];
+      }
+      grouped[dateKey].push(caseItem);
+    });
+    
+    // Sort dates
+    const sortedEntries = Object.entries(grouped).sort(([a], [b]) => {
+      if (a === 'No Date') return 1;
+      if (b === 'No Date') return -1;
+      return new Date(a).getTime() - new Date(b).getTime();
+    });
+    
+    return Object.fromEntries(sortedEntries);
+  };
+  
+  const groupCasesByCourt = (casesToGroup: CaseWithRelations[]) => {
+    const grouped: Record<string, CaseWithRelations[]> = {};
+    
+    casesToGroup.forEach(caseItem => {
+      const courtKey = caseItem.court_name || 'Unknown Court';
+      
+      if (!grouped[courtKey]) {
+        grouped[courtKey] = [];
+      }
+      grouped[courtKey].push(caseItem);
+    });
+    
+    // Sort by court name alphabetically
+    const sortedEntries = Object.entries(grouped).sort(([a], [b]) => 
+      a.localeCompare(b)
+    );
+    
+    return Object.fromEntries(sortedEntries);
+  };
+  
+  const formatDateHeader = (dateString: string) => {
+    if (dateString === 'No Date') return 'No Hearing Date';
+    const date = new Date(dateString);
+    const options: Intl.DateTimeFormatOptions = { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    };
+    return date.toLocaleDateString('en-US', options);
+  };
+
+  const getFilteredCases = () => {
+    let filtered = [...cases];
+    
+    // Apply search filter
+    if (searchQuery) {
+      filtered = filterCases(filtered, searchQuery);
+    }
+    
+    // Filter by selected courts
+    if (selectedCourts.length > 0) {
+      filtered = filtered.filter(c => 
+        c.court_name && selectedCourts.includes(c.court_name)
+      );
+    }
+    
+    // Filter by status
+    if (selectedStatus.length > 0) {
+      filtered = filtered.filter(c => 
+        c.status && selectedStatus.includes(c.status)
+      );
+    }
+    
+    // Filter by date range
+    if (dateRange.start || dateRange.end) {
+      filtered = filtered.filter(c => {
+        const caseDate = c.next_hearing || c.filing_date;
+        if (!caseDate) return false;
+        
+        const date = new Date(caseDate);
+        if (dateRange.start && date < dateRange.start) return false;
+        if (dateRange.end && date > dateRange.end) return false;
+        return true;
+      });
+    }
+    
+    // Hide old cases if needed
+    if (hideOldCases) {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      filtered = filtered.filter(c => {
+        const date = new Date(c.scraped_at);
+        return date > thirtyDaysAgo;
+      });
+    }
+    
+    // Apply sorting
+    if (sortBy === 'court') {
+      filtered.sort((a, b) => {
+        // First sort by court name
+        const courtCompare = (a.court_name || '').localeCompare(b.court_name || '');
+        if (courtCompare !== 0) return courtCompare;
+        
+        // Then by date within each court
+        const dateA = new Date(a.next_hearing || a.filing_date || 0);
+        const dateB = new Date(b.next_hearing || b.filing_date || 0);
+        return dateB.getTime() - dateA.getTime();
+      });
+    } else {
+      // Default: sort by date (most recent first)
+      filtered.sort((a, b) => {
+        const dateA = new Date(a.next_hearing || a.filing_date || 0);
+        const dateB = new Date(b.next_hearing || b.filing_date || 0);
+        return dateB.getTime() - dateA.getTime();
+      });
+    }
+    
+    return filtered;
+  };
+
+  const exportToCSV = () => {
+    const filteredCases = getFilteredCases();
+    const csv = generateCSV(filteredCases);
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `court-cases-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+  };
+
+  const exportToPDF = () => {
+    const filteredCases = getFilteredCases();
+    const doc = new jsPDF();
+    
+    doc.setFontSize(18);
+    doc.text('Court Cases Report', 14, 22);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 30);
+    
+    const tableData = filteredCases.map(c => {
+      const parties = parseParties(c);
+      return [
+        c.case_number,
+        c.court_name || '',
+        c.case_title || '',
+        c.case_type || '',
+        formatDate(c.next_hearing),
+        parties.defendant?.party_name || 'N/A'
+      ];
+    });
+    
+    autoTable(doc, {
+      head: [['Case #', 'Court', 'Title', 'Type', 'Next Hearing', 'Defendant']],
+      body: tableData,
+      startY: 35,
+      styles: { fontSize: 8 }
+    });
+    
+    doc.save(`court-cases-${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
+  const renderCaseModal = () => {
+    if (!selectedCase) return null;
+    
+    const parties = parseParties(selectedCase);
+    const charges = parseDocketEntries(selectedCase);
+    
+    return (
+      <div className="modal-overlay" onClick={() => setSelectedCase(null)}>
+        <div className="modal-content" onClick={e => e.stopPropagation()}>
+          <button className="modal-close" onClick={() => setSelectedCase(null)}>×</button>
+          
+          <h2>{selectedCase.case_number}</h2>
+          <h3>{selectedCase.case_title}</h3>
+          
+          <div className="case-details">
+            <div className="detail-section">
+              <h4>Case Information</h4>
+              <p><strong>Court:</strong> {selectedCase.court_name}</p>
+              <p><strong>Type:</strong> {selectedCase.case_type}</p>
+              <p><strong>Status:</strong> {selectedCase.status}</p>
+              <p><strong>Filing Date:</strong> {formatDate(selectedCase.filing_date)}</p>
+              <p><strong>Judge:</strong> {selectedCase.judge || 'N/A'}</p>
+              <p><strong>Location:</strong> {selectedCase.location || 'N/A'}</p>
+            </div>
+            
+            <div className="detail-section">
+              <h4>Parties</h4>
+              {parties.plaintiff && (
+                <div>
+                  <p><strong>Plaintiff:</strong> {parties.plaintiff.party_name}</p>
+                  {parties.plaintiff.attorney && (
+                    <p><strong>Attorney:</strong> {parties.plaintiff.attorney}</p>
+                  )}
+                </div>
+              )}
+              {parties.defendant && (
+                <div>
+                  <p><strong>Defendant:</strong> {parties.defendant.party_name}</p>
+                  {parties.defendant.attorney && (
+                    <p><strong>Attorney:</strong> {parties.defendant.attorney}</p>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            {charges.length > 0 && (
+              <div className="detail-section">
+                <h4>Charges</h4>
+                {charges.map((charge, idx) => (
+                  <div key={idx} className="charge-item">
+                    <p><strong>{charge.ars_code}:</strong> {charge.description}</p>
+                    {charge.disposition && (
+                      <p className="disposition">Disposition: {charge.disposition}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {selectedCase.case_calendar && selectedCase.case_calendar.length > 0 && (
+              <div className="detail-section">
+                <h4>Upcoming Hearings</h4>
+                {selectedCase.case_calendar.map((hearing, idx) => (
+                  <div key={idx} className="hearing-item">
+                    <p>
+                      <strong>{formatDate(hearing.hearing_date)}</strong> at {formatTime(hearing.hearing_time)}
+                    </p>
+                    <p>{hearing.event_type} - {hearing.location}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAnalytics = () => {
+    if (!statistics) return null;
+    
+    // Prepare chart data
+    const courtChartData = {
+      labels: Object.keys(statistics.cases_by_court).slice(0, 10),
+      datasets: [{
+        label: 'Cases by Court',
+        data: Object.values(statistics.cases_by_court).slice(0, 10),
+        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+      }]
+    };
+    
+    const typeChartData = {
+      labels: Object.keys(statistics.cases_by_type),
+      datasets: [{
+        label: 'Cases by Type',
+        data: Object.values(statistics.cases_by_type),
+        backgroundColor: [
+          'rgba(255, 99, 132, 0.6)',
+          'rgba(54, 162, 235, 0.6)',
+          'rgba(255, 206, 86, 0.6)',
+          'rgba(75, 192, 192, 0.6)',
+          'rgba(153, 102, 255, 0.6)',
+        ],
+      }]
+    };
+    
+    return (
+      <div className="analytics-container">
+        <div className="stats-grid">
+          <div className="stat-card">
+            <h3>Total Cases</h3>
+            <p className="stat-number">{statistics.total_cases}</p>
+          </div>
+          <div className="stat-card">
+            <h3>Recent Cases (7 days)</h3>
+            <p className="stat-number">{statistics.recent_cases}</p>
+          </div>
+          <div className="stat-card">
+            <h3>Upcoming Hearings</h3>
+            <p className="stat-number">{statistics.upcoming_hearings}</p>
+          </div>
+          <div className="stat-card">
+            <h3>Courts Active</h3>
+            <p className="stat-number">{Object.keys(statistics.cases_by_court).length}</p>
+          </div>
+        </div>
+        
+        <div className="charts-grid">
+          <div className="chart-container">
+            <h3>Cases by Court</h3>
+            <Bar data={courtChartData} options={{ responsive: true }} />
+          </div>
+          <div className="chart-container">
+            <h3>Cases by Type</h3>
+            <Doughnut data={typeChartData} options={{ responsive: true }} />
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (loading && cases.length === 0) {
+    return <div className="loading">Loading cases...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="error-container">
+        <p className="error-message">{error}</p>
+        <button onClick={loadData}>Retry</button>
+      </div>
+    );
+  }
+
+  const filteredCases = getFilteredCases();
+  
+  // Group cases by date or court based on sort selection
+  const groupedCases = sortBy === 'court' 
+    ? groupCasesByCourt(filteredCases)
+    : groupCasesByDate(filteredCases);
+    
+  const allCourts = [...new Set(cases.map(c => c.court_name).filter(Boolean))];
+  const allStatuses = [...new Set(cases.map(c => c.status).filter(Boolean))];
+
+  return (
+    <div className="dashboard-container">
+      <NotificationSystem />
+      <div className="dashboard-header">
+        <div className="header-left">
+          <h1>Justice Watch Dashboard</h1>
+        </div>
+        <div className="header-center">
+          <div className="tab-switcher">
+            <button 
+              className={activeTab === 'cases' ? 'active' : ''} 
+              onClick={() => setActiveTab('cases')}
+            >
+              <span className="tab-icon">📋</span>
+              Cases
+            </button>
+            <button 
+              className={activeTab === 'analytics' ? 'active' : ''} 
+              onClick={() => setActiveTab('analytics')}
+            >
+              <span className="tab-icon">📊</span>
+              Analytics
+            </button>
+          </div>
+        </div>
+        <div className="header-right">
+          <ConnectionStatus />
+        </div>
+      </div>
+      
+      {activeTab === 'cases' ? (
+        <>
+          <div className="filters-section">
+            <div className="filters-top-row">
+              <div className="search-input">
+                <input
+                  type="text"
+                  placeholder="Search cases, defendants, case numbers..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="search-field"
+                />
+              </div>
+              
+              <div className="sort-toggle">
+                <label>Sort by:</label>
+                <button 
+                  className={`sort-btn ${sortBy === 'date' ? 'active' : ''}`}
+                  onClick={() => setSortBy('date')}
+                >
+                  Date
+                </button>
+                <button 
+                  className={`sort-btn ${sortBy === 'court' ? 'active' : ''}`}
+                  onClick={() => setSortBy('court')}
+                >
+                  Court
+                </button>
+              </div>
+            </div>
+            
+            <div className="filters-bottom-row">
+              <div className="filter-group">
+                <label>Court</label>
+                <select 
+                  value={selectedCourts[0] || ''}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setSelectedCourts([e.target.value]);
+                    } else {
+                      setSelectedCourts([]);
+                    }
+                  }}
+                >
+                  <option value="">All Courts</option>
+                  {allCourts.map(court => (
+                    <option key={court} value={court}>{court}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="filter-group">
+                <label>Status</label>
+                <select
+                  value={selectedStatus[0] || ''}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setSelectedStatus([e.target.value]);
+                    } else {
+                      setSelectedStatus([]);
+                    }
+                  }}
+                >
+                  <option value="">All Status</option>
+                  {allStatuses.map(status => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <label className="checkbox-filter">
+                <input
+                  type="checkbox"
+                  checked={hideOldCases}
+                  onChange={(e) => setHideOldCases(e.target.checked)}
+                />
+                Hide Past Cases
+              </label>
+            </div>
+          </div>
+          
+          <div className="cases-container">
+            {Object.entries(groupedCases).map(([groupKey, groupCases]) => (
+              <div key={groupKey} className="case-group">
+                <h3 className="group-header">
+                  {sortBy === 'court' ? groupKey : formatDateHeader(groupKey)}
+                </h3>
+                <div className="cases-grid">
+                  {groupCases.map(caseItem => {
+                    const parties = parseParties(caseItem);
+                    return (
+                      <div 
+                        key={caseItem.id} 
+                        className="case-card"
+                        onClick={() => setSelectedCase(caseItem)}
+                      >
+                        <div className="case-card-header">
+                          <span className="case-number">{caseItem.case_number}</span>
+                          <span className="case-type-badge">{caseItem.case_type}</span>
+                        </div>
+                        <div className="case-card-body">
+                          <p className="case-title">{caseItem.case_title}</p>
+                          <p className="case-court">{caseItem.court_name}</p>
+                          {parties.defendant && (
+                            <p className="case-defendant">
+                              <strong>Defendant:</strong> {parties.defendant.party_name}
+                            </p>
+                          )}
+                        </div>
+                        <div className="case-card-footer">
+                          {caseItem.next_hearing && (
+                            <span className="hearing-time">
+                              {formatTime(caseItem.next_hearing)}
+                            </span>
+                          )}
+                          <span className={`status-indicator ${caseItem.status?.toLowerCase()}`}>
+                            {caseItem.status}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        renderAnalytics()
+      )}
+      
+      {renderCaseModal()}
+      
+      {/* Floating Export Buttons */}
+      <div className="floating-export-buttons">
+        <button onClick={exportToCSV} title="Export to CSV">
+          <span>📊</span> CSV
+        </button>
+        <button onClick={exportToPDF} title="Export to PDF">
+          <span>📄</span> PDF
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default CasesDashboardV3;

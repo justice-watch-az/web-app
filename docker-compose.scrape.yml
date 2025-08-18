@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  selenium-hub:
+    image: selenium/standalone-chrome:latest
+    container_name: selenium-scraper-hub
+    ports:
+      - "4444:4444"     # Selenium Grid
+      - "7900:7900"     # noVNC web viewer
+      - "5900:5900"     # VNC
+    environment:
+      - SE_NODE_MAX_SESSIONS=1
+      - SE_VNC_NO_PASSWORD=1
+      - SE_NODE_SESSION_TIMEOUT=600
+      - SE_SCREEN_WIDTH=1920
+      - SE_SCREEN_HEIGHT=1080
+    shm_size: 2gb
+    networks:
+      - scraper-network
+
+  scraper:
+    image: justice-scraper:test
+    container_name: justice-scraper-live
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@host.docker.internal:54322/postgres
+      - SUPABASE_URL=http://host.docker.internal:54321
+      - SELENIUM_HUB=http://selenium-hub:4444
+      - PYTHONUNBUFFERED=1
+      - HEADLESS=false  # Show browser for monitoring
+      - TEST_MODE=false  # Real scraping
+    networks:
+      - scraper-network
+    depends_on:
+      - selenium-hub
+    volumes:
+      - ./scrapers:/app/scrapers:ro
+      - ./scraper-output:/app/output
+    stdin_open: true
+    tty: true
+    command: /bin/bash  # Start with shell for interactive control
+
+networks:
+  scraper-network:
+    driver: bridge

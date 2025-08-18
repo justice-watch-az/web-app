@@ -1,0 +1,161 @@
+name: Scrape Maricopa Courts (Mac)
+
+on:
+  schedule:
+    # Run Monday-Friday at 9am MST/PDT (UTC-7) which is 4pm UTC
+    - cron: '0 16 * * 1-5'
+  workflow_dispatch:  # Allow manual trigger
+    inputs:
+      court_limit:
+        description: 'Number of courts to scrape (0 for all)'
+        required: false
+        default: '0'
+      test_mode:
+        description: 'Run in test mode'
+        required: false
+        default: 'false'
+
+jobs:
+  scrape-courts:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/Library/Caches/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install Chrome (if needed)
+      run: |
+        if ! command -v google-chrome &> /dev/null; then
+          brew install --cask google-chrome
+        fi
+        echo "Chrome version:"
+        /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --version
+    
+    - name: Install Python dependencies
+      run: |
+        pip install --upgrade pip
+        pip install selenium beautifulsoup4 requests psycopg2-binary supabase python-dotenv
+    
+    - name: Download ChromeDriver
+      run: |
+        # Get Chrome version
+        CHROME_VERSION=$(/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --version | awk '{print $3}' | cut -d'.' -f1)
+        echo "Chrome version: $CHROME_VERSION"
+        
+        # Download matching ChromeDriver
+        CHROMEDRIVER_VERSION=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/LATEST_RELEASE_$CHROME_VERSION")
+        echo "ChromeDriver version: $CHROMEDRIVER_VERSION"
+        
+        curl -o chromedriver.zip "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROMEDRIVER_VERSION}/mac-x64/chromedriver-mac-x64.zip"
+        unzip chromedriver.zip
+        sudo mv chromedriver-mac-x64/chromedriver /usr/local/bin/
+        sudo chmod +x /usr/local/bin/chromedriver
+        
+        # Verify installation
+        chromedriver --version
+    
+    - name: Create scraper config
+      run: |
+        cat > scraper_config.json << EOF
+        {
+          "headless": false,
+          "court_limit": ${{ github.event.inputs.court_limit || '0' }},
+          "test_mode": ${{ github.event.inputs.test_mode || 'false' }},
+          "save_to_db": true,
+          "database_url": "${{ secrets.DATABASE_URL }}",
+          "supabase_url": "${{ secrets.SUPABASE_URL }}",
+          "supabase_key": "${{ secrets.SUPABASE_SERVICE_KEY }}"
+        }
+        EOF
+    
+    - name: Run scraper
+      env:
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        PYTHONUNBUFFERED: "1"
+      run: |
+        echo "Starting scraper at $(date)"
+        python3 scrapers/maricopa_arraignment_scraper.py "$(cat scraper_config.json)"
+      timeout-minutes: 30
+    
+    - name: Upload scraping results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: scraping-results-${{ github.run_number }}
+        path: |
+          scraper_output.json
+          scraper.log
+          screenshots/
+        retention-days: 7
+    
+    - name: Send notification on failure
+      if: failure()
+      run: |
+        echo "Scraping failed at $(date)" >> failure.log
+        # Could add Slack/Discord/email notification here
+    
+    - name: Update database stats
+      if: success()
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      run: |
+        python3 << EOF
+        import os
+        from datetime import datetime
+        from supabase import create_client
+        
+        url = os.environ.get("SUPABASE_URL")
+        key = os.environ.get("SUPABASE_SERVICE_KEY")
+        
+        if url and key:
+            supabase = create_client(url, key)
+            
+            # Log successful scrape
+            supabase.table('scraping_jobs').insert({
+                'status': 'completed',
+                'completed_at': datetime.now().isoformat(),
+                'source': 'github-actions-mac',
+                'notes': 'Automated scrape from GitHub Actions'
+            }).execute()
+            
+            print("✅ Database updated with scraping status")
+        EOF
+
+  notify-complete:
+    needs: scrape-courts
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Check results
+      run: |
+        if [ "${{ needs.scrape-courts.result }}" == "success" ]; then
+          echo "✅ Scraping completed successfully"
+        else
+          echo "❌ Scraping failed or was cancelled"
+        fi
+    
+    - name: Create summary
+      run: |
+        echo "## Scraping Run Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status**: ${{ needs.scrape-courts.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Run Number**: ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Triggered by**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Time**: $(date)" >> $GITHUB_STEP_SUMMARY

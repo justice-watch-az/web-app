@@ -42,6 +42,8 @@ class MaricopaArraignmentScraper:
     
     def setup_driver(self):
         """Set up Chrome WebDriver."""
+        from selenium.webdriver.chrome.service import Service
+        
         options = Options()
         
         if self.config.get('headless', True):
@@ -53,16 +55,19 @@ class MaricopaArraignmentScraper:
         options.add_argument('--window-size=1920,1080')
         
         import os
-        # In Docker, use the Alpine chromium path
-        if os.path.exists('/usr/bin/chromium-browser'):
+        # In Docker, use the correct Chrome paths
+        if os.path.exists('/usr/bin/google-chrome'):
+            options.binary_location = '/usr/bin/google-chrome'
+        elif os.path.exists('/usr/bin/chromium-browser'):
             options.binary_location = '/usr/bin/chromium-browser'
         elif os.environ.get('CHROME_BIN'):
             options.binary_location = os.environ.get('CHROME_BIN')
         
         try:
-            from selenium.webdriver.chrome.service import Service
-            # In Docker, use the Alpine chromedriver path
-            if os.path.exists('/usr/bin/chromedriver'):
+            # In Docker, use the correct chromedriver path
+            if os.path.exists('/usr/local/bin/chromedriver'):
+                chromedriver_path = '/usr/local/bin/chromedriver'
+            elif os.path.exists('/usr/bin/chromedriver'):
                 chromedriver_path = '/usr/bin/chromedriver'
             else:
                 chromedriver_path = os.environ.get('CHROMEDRIVER_PATH', 'chromedriver')

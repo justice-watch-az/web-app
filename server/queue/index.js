@@ -57,8 +57,13 @@ async function initQueue(socketIo) {
       };
       
       // Use the new Maricopa court scraper that only gets arraignment cases
+      // TEMPORARY: Using mock scraper for testing without Chrome
+      const scraperScript = process.env.USE_MOCK_SCRAPER 
+        ? 'mock_scraper.py' 
+        : 'maricopa_arraignment_scraper.py';
+      
       const pythonProcess = spawn('python3', [
-        path.join(__dirname, '../../scrapers/maricopa_arraignment_scraper.py'),
+        path.join(__dirname, '../../scrapers/', scraperScript),
         JSON.stringify(scraperConfig)
       ]);
 
