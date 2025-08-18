@@ -671,6 +671,17 @@ if __name__ == "__main__":
         scraper = MaricopaArraignmentScraper(config)
         result = scraper.run()
         
+        # Write to Supabase if we have arraignment cases
+        if result.get('status') == 'success' and result.get('arraignment_cases'):
+            try:
+                from supabase_writer import write_scraper_results_to_supabase
+                db_result = write_scraper_results_to_supabase(result)
+                result['database_write'] = db_result
+                logger.info(f"Database write result: {db_result}")
+            except Exception as db_error:
+                logger.error(f"Failed to write to database: {db_error}")
+                result['database_write'] = {'status': 'error', 'error': str(db_error)}
+        
         # Output result as JSON
         print(json.dumps(result))
         
