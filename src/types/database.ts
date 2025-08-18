@@ -140,6 +140,7 @@ export interface Statistics {
   total_cases: number;
   cases_by_court: Record<string, number>;
   cases_by_type: Record<string, number>;
+  charges_breakdown: Record<string, number>;
   recent_cases: number;
   upcoming_hearings: number;
 }

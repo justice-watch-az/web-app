@@ -144,6 +144,46 @@ export const getStatistics = async (): Promise<Statistics> => {
       casesByType[type] = (casesByType[type] || 0) + 1;
     });
 
+    // Get charges breakdown
+    const { data: chargesData } = await supabase
+      .from('case_charges')
+      .select('description')
+      .not('description', 'is', null);
+
+    const chargesBreakdown: Record<string, number> = {};
+    chargesData?.forEach(row => {
+      // Clean up and categorize the charge description
+      let charge = row.description || 'Unknown';
+      
+      // Simplify common charge patterns
+      if (charge.toLowerCase().includes('dui') || charge.toLowerCase().includes('driving under')) {
+        charge = 'DUI/Impaired Driving';
+      } else if (charge.toLowerCase().includes('speed') || charge.toLowerCase().includes('speeding')) {
+        charge = 'Speeding';
+      } else if (charge.toLowerCase().includes('assault')) {
+        charge = 'Assault';
+      } else if (charge.toLowerCase().includes('theft') || charge.toLowerCase().includes('shoplifting')) {
+        charge = 'Theft/Shoplifting';
+      } else if (charge.toLowerCase().includes('drug') || charge.toLowerCase().includes('narcotic')) {
+        charge = 'Drug Related';
+      } else if (charge.toLowerCase().includes('criminal damage')) {
+        charge = 'Criminal Damage';
+      } else if (charge.toLowerCase().includes('disorderly')) {
+        charge = 'Disorderly Conduct';
+      } else if (charge.toLowerCase().includes('trespass')) {
+        charge = 'Trespassing';
+      } else if (charge.toLowerCase().includes('license') || charge.toLowerCase().includes('registration')) {
+        charge = 'License/Registration';
+      } else if (charge.toLowerCase().includes('domestic')) {
+        charge = 'Domestic Violence';
+      } else if (charge.length > 50) {
+        // Truncate very long descriptions
+        charge = charge.substring(0, 50) + '...';
+      }
+      
+      chargesBreakdown[charge] = (chargesBreakdown[charge] || 0) + 1;
+    });
+
     // Get recent cases (last 7 days)
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -163,6 +203,7 @@ export const getStatistics = async (): Promise<Statistics> => {
       total_cases: totalCases || 0,
       cases_by_court: casesByCourt,
       cases_by_type: casesByType,
+      charges_breakdown: chargesBreakdown,
       recent_cases: recentCases || 0,
       upcoming_hearings: upcomingHearings || 0
     };
@@ -172,6 +213,7 @@ export const getStatistics = async (): Promise<Statistics> => {
       total_cases: 0,
       cases_by_court: {},
       cases_by_type: {},
+      charges_breakdown: {},
       recent_cases: 0,
       upcoming_hearings: 0
     };

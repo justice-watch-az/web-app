@@ -563,18 +563,41 @@ function CasesDashboardV3() {
       }]
     };
     
-    const typeChartData = {
-      labels: Object.keys(statistics.cases_by_type),
+    // Sort charges by count and take top 10 for cleaner display
+    const sortedCharges = Object.entries(statistics.charges_breakdown || {})
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10);
+    
+    const chargesChartData = {
+      labels: sortedCharges.map(([charge]) => charge),
       datasets: [{
-        label: 'Cases by Type',
-        data: Object.values(statistics.cases_by_type),
+        label: 'Charges Analysis',
+        data: sortedCharges.map(([, count]) => count),
         backgroundColor: [
-          'rgba(255, 99, 132, 0.6)',
-          'rgba(54, 162, 235, 0.6)',
-          'rgba(255, 206, 86, 0.6)',
-          'rgba(75, 192, 192, 0.6)',
-          'rgba(153, 102, 255, 0.6)',
+          'rgba(255, 99, 132, 0.7)',   // Red
+          'rgba(54, 162, 235, 0.7)',   // Blue
+          'rgba(255, 206, 86, 0.7)',   // Yellow
+          'rgba(75, 192, 192, 0.7)',   // Teal
+          'rgba(153, 102, 255, 0.7)',  // Purple
+          'rgba(255, 159, 64, 0.7)',   // Orange
+          'rgba(199, 199, 199, 0.7)',  // Grey
+          'rgba(83, 102, 255, 0.7)',   // Indigo
+          'rgba(255, 99, 255, 0.7)',   // Pink
+          'rgba(99, 255, 132, 0.7)',   // Green
         ],
+        borderColor: [
+          'rgba(255, 99, 132, 1)',
+          'rgba(54, 162, 235, 1)',
+          'rgba(255, 206, 86, 1)',
+          'rgba(75, 192, 192, 1)',
+          'rgba(153, 102, 255, 1)',
+          'rgba(255, 159, 64, 1)',
+          'rgba(199, 199, 199, 1)',
+          'rgba(83, 102, 255, 1)',
+          'rgba(255, 99, 255, 1)',
+          'rgba(99, 255, 132, 1)',
+        ],
+        borderWidth: 1,
       }]
     };
     
@@ -605,8 +628,35 @@ function CasesDashboardV3() {
             <Bar data={courtChartData} options={{ responsive: true }} />
           </div>
           <div className="chart-container">
-            <h3>Cases by Type</h3>
-            <Doughnut data={typeChartData} options={{ responsive: true }} />
+            <h3>Charges Analysis</h3>
+            <Doughnut 
+              data={chargesChartData} 
+              options={{ 
+                responsive: true,
+                plugins: {
+                  legend: {
+                    position: 'right',
+                    labels: {
+                      padding: 10,
+                      font: {
+                        size: 11
+                      }
+                    }
+                  },
+                  tooltip: {
+                    callbacks: {
+                      label: (context) => {
+                        const label = context.label || '';
+                        const value = context.parsed || 0;
+                        const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+                        const percentage = ((value / total) * 100).toFixed(1);
+                        return `${label}: ${value} (${percentage}%)`;
+                      }
+                    }
+                  }
+                }
+              }} 
+            />
           </div>
         </div>
       </div>
