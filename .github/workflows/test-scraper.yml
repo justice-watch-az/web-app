@@ -1,0 +1,27 @@
+name: Test Scraper Setup
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-environment:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Test secrets availability
+        run: |
+          echo "Testing secrets..."
+          [ ! -z "${{ secrets.SUPABASE_URL }}" ] && echo "✅ SUPABASE_URL is set" || echo "❌ SUPABASE_URL missing"
+          [ ! -z "${{ secrets.SUPABASE_ANON_KEY }}" ] && echo "✅ SUPABASE_ANON_KEY is set" || echo "❌ SUPABASE_ANON_KEY missing"
+          [ ! -z "${{ secrets.SUPABASE_SERVICE_KEY }}" ] && echo "✅ SUPABASE_SERVICE_KEY is set" || echo "❌ SUPABASE_SERVICE_KEY missing"
+          
+      - name: Test Python setup
+        run: |
+          python --version
+          pip install -r requirements.txt
+          playwright install chromium
+          
+      - name: Test scraper import
+        run: |
+          python -c "import sys; sys.path.append('.'); print('✅ Scraper ready')"

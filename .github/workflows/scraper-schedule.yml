@@ -1,0 +1,67 @@
+name: Scheduled Court Scraper
+
+on:
+  schedule:
+    # Monday-Friday at 9 AM MST/Arizona (4 PM UTC)
+    # Arizona doesn't observe DST, so it's always UTC-7
+    - cron: '0 16 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      debug:
+        description: 'Enable debug logging'
+        type: boolean
+        default: false
+
+jobs:
+  scrape-arraignments:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Cache pip packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium
+          playwright install-deps chromium
+          
+      - name: Run arraignment scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          python scrapers/maricopa_arraignment_scraper.py '{"headless": true}'
+          
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: scraper-logs-${{ github.run_id }}
+          path: logs/
+          retention-days: 7
+          
+      - name: Notify on failure
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Scraper failed: ${new Date().toLocaleDateString()}`,
+              body: `The scheduled scraper failed at ${new Date().toLocaleString()}.\n\nCheck the [workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for details.`,
+              labels: ['bug', 'scraper']
+            })
