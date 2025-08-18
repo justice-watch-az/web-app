@@ -68,10 +68,9 @@ class SupabaseWriter:
                     stats['skipped'] += 1
                     continue
                 
-                # Prepare case data for Supabase
+                # Prepare case data for Supabase - ONLY columns that exist in cloud DB
                 case_data = {
                     'case_number': case.get('case_number'),
-                    # court_id not in cloud database schema
                     'court_name': case.get('court_name'),
                     'case_title': case.get('case_title'),
                     'case_type': case.get('case_type', 'Criminal Traffic'),
@@ -82,14 +81,8 @@ class SupabaseWriter:
                     'case_url': case.get('raw_data', {}).get('case_url'),
                     'scraped_at': datetime.now().isoformat(),
                     'updated_at': datetime.now().isoformat(),
-                    
-                    # Store complex data as JSON
-                    'parties': json.dumps(case.get('parties', {})),
-                    'docket_entries': json.dumps(case.get('docket_entries', [])),
                     'next_hearing': case.get('arraignment_date'),  # Store the date
-                    'raw_data': json.dumps(case.get('raw_data', {})),
-                    'events': json.dumps([]),
-                    'documents': json.dumps([])
+                    'raw_data': json.dumps(case.get('raw_data', {}))  # All detailed data goes here
                 }
                 
                 # Check if case already exists
