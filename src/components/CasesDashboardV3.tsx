@@ -476,24 +476,28 @@ function CasesDashboardV3() {
               </p>
             </div>
             
-            <div className="detail-section">
+            <div className="detail-section parties-section">
               <h4>Parties</h4>
-              {parties.plaintiff && (
-                <div>
-                  <p><strong>Plaintiff:</strong> {parties.plaintiff.party_name}</p>
-                  {parties.plaintiff.attorney && (
-                    <p><strong>Attorney:</strong> {parties.plaintiff.attorney}</p>
-                  )}
-                </div>
-              )}
-              {parties.defendant && (
-                <div>
-                  <p><strong>Defendant:</strong> {parties.defendant.party_name}</p>
-                  {parties.defendant.attorney && (
-                    <p><strong>Attorney:</strong> {parties.defendant.attorney}</p>
-                  )}
-                </div>
-              )}
+              <div className="parties-list">
+                {parties.plaintiff && (
+                  <div className="party-item">
+                    <div className="party-label">Plaintiff</div>
+                    <div className="party-name">{parties.plaintiff.party_name}</div>
+                    {parties.plaintiff.attorney && (
+                      <div className="party-attorney">Attorney: {parties.plaintiff.attorney}</div>
+                    )}
+                  </div>
+                )}
+                {parties.defendant && (
+                  <div className="party-item">
+                    <div className="party-label">Defendant</div>
+                    <div className="party-name">{parties.defendant.party_name}</div>
+                    {parties.defendant.attorney && (
+                      <div className="party-attorney">Attorney: {parties.defendant.attorney}</div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             
             {charges.length > 0 && (

@@ -3,21 +3,11 @@
   "version": "2.0.0",
   "description": "Web-based court monitoring application for Maricopa County Justice Courts",
   "scripts": {
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "dev:server": "nodemon server/index.js",
-    "dev:client": "vite",
+    "dev": "vite",
     "build": "vite build",
-    "build:server": "tsc -p server/tsconfig.json",
-    "start": "node server/index.js",
+    "preview": "vite preview",
     "lint": "eslint --ext .ts,.tsx .",
-    "type-check": "tsc --noEmit",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "e2e:wdio": "wdio run e2e-selenium/wdio.conf.js",
-    "benchmark": "python benchmarks/performance.py --all",
-    "benchmark:api": "python benchmarks/performance.py --api",
-    "benchmark:scraper": "python benchmarks/performance.py --scraper"
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "2": "^3.0.0",

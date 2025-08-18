@@ -93,9 +93,27 @@ export const parseParties = (caseData: CaseWithRelations) => {
     defendant: null as any
   };
   
-  if (caseData.case_parties) {
+  // First try to get from case_parties table
+  if (caseData.case_parties && caseData.case_parties.length > 0) {
     parties.plaintiff = caseData.case_parties.find(p => p.party_type === 'plaintiff') || null;
     parties.defendant = caseData.case_parties.find(p => p.party_type === 'defendant') || null;
+  }
+  
+  // If no parties in database, extract from case title (format: "State of Arizona vs DEFENDANT NAME")
+  if (!parties.plaintiff && !parties.defendant && caseData.case_title) {
+    const titleParts = caseData.case_title.split(' vs ');
+    if (titleParts.length >= 2) {
+      parties.plaintiff = {
+        party_type: 'plaintiff',
+        party_name: titleParts[0].trim(),
+        attorney: null
+      };
+      parties.defendant = {
+        party_type: 'defendant', 
+        party_name: titleParts[1].trim(),
+        attorney: null
+      };
+    }
   }
   
   return parties;
