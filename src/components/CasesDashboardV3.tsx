@@ -456,6 +456,27 @@ function CasesDashboardV3() {
             </div>
             
             <div className="detail-section">
+              <h4>Case History</h4>
+              <a 
+                href={selectedCase.case_url || 
+                      `https://justicecourts.maricopa.gov/app/courtrecords/CaseInfo?casenumber=${selectedCase.case_number}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="case-history-link"
+              >
+                <span>View Full Case History</span>
+                <svg className="external-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                  <polyline points="15 3 21 3 21 9"></polyline>
+                  <line x1="10" y1="14" x2="21" y2="3"></line>
+                </svg>
+              </a>
+              <p className="case-history-note">
+                Opens official Maricopa County court records in a new tab
+              </p>
+            </div>
+            
+            <div className="detail-section">
               <h4>Parties</h4>
               {parties.plaintiff && (
                 <div>
@@ -476,13 +497,30 @@ function CasesDashboardV3() {
             </div>
             
             {charges.length > 0 && (
-              <div className="detail-section">
-                <h4>Charges</h4>
+              <div className="detail-section charges-section">
+                <h4>Charges ({charges.length})</h4>
                 {charges.map((charge, idx) => (
                   <div key={idx} className="charge-item">
-                    <p><strong>{charge.ars_code}:</strong> {charge.description}</p>
+                    <div className="charge-header">
+                      <span className="charge-code">{charge.ars_code}</span>
+                    </div>
+                    <p className="charge-description">{charge.description}</p>
+                    {charge.date && (
+                      <p className="charge-date">
+                        <strong>Crime Date:</strong> {formatDate(charge.date)}
+                      </p>
+                    )}
                     {charge.disposition && (
-                      <p className="disposition">Disposition: {charge.disposition}</p>
+                      <div className="disposition-info">
+                        <p className="disposition">
+                          <strong>Disposition:</strong> {charge.disposition}
+                        </p>
+                        {charge.disposition_date && (
+                          <p className="disposition-date">
+                            <strong>Disposition Date:</strong> {formatDate(charge.disposition_date)}
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
                 ))}

@@ -99,13 +99,32 @@ class SupabaseWriter:
                 
                 stats['saved'] += 1
                 
-                # Also save to case_charges table if disposition info exists
-                if 'disposition_information' in case.get('raw_data', {}):
-                    self.save_charges(result.data[0]['id'], case.get('raw_data', {}).get('disposition_information', []))
+                # Get case ID from result
+                case_id = None
+                if result.data and len(result.data) > 0:
+                    case_id = result.data[0]['id']
+                elif existing.data and len(existing.data) > 0:
+                    case_id = existing.data[0]['id']
                 
-                # Save calendar entries
-                if 'case_calendar' in case.get('raw_data', {}):
-                    self.save_calendar(result.data[0]['id'], case.get('raw_data', {}).get('case_calendar', []))
+                if case_id:
+                    # Save charges - disposition_information is at the top level of case dict
+                    disposition_info = case.get('disposition_information', [])
+                    if disposition_info:
+                        logger.info(f"Found {len(disposition_info)} charges for case {case_data['case_number']}")
+                        self.save_charges(case_id, disposition_info)
+                    else:
+                        # Also check in raw_data as fallback
+                        raw_disposition = case.get('raw_data', {}).get('disposition_information', [])
+                        if raw_disposition:
+                            logger.info(f"Found {len(raw_disposition)} charges in raw_data for case {case_data['case_number']}")
+                            self.save_charges(case_id, raw_disposition)
+                        else:
+                            logger.info(f"No charges found for case {case_data['case_number']}")
+                    
+                    # Save calendar entries - check both locations
+                    calendar_entries = case.get('case_calendar', []) or case.get('raw_data', {}).get('case_calendar', [])
+                    if calendar_entries:
+                        self.save_calendar(case_id, calendar_entries)
                     
             except Exception as e:
                 logger.error(f"Failed to save case {case.get('case_number')}: {e}")
@@ -116,26 +135,57 @@ class SupabaseWriter:
     
     def save_charges(self, case_id: int, charges: List[Dict[str, Any]]):
         """Save charge information to case_charges table."""
+        if not charges:
+            logger.info(f"No charges to save for case {case_id}")
+            return
+            
+        logger.info(f"Attempting to save {len(charges)} charges for case {case_id}")
+        
         try:
             # Delete existing charges for this case
-            self.supabase.table('case_charges').delete().eq('case_id', case_id).execute()
+            delete_result = self.supabase.table('case_charges').delete().eq('case_id', case_id).execute()
+            logger.info(f"Deleted {len(delete_result.data) if delete_result.data else 0} existing charges")
             
             # Insert new charges
-            for charge in charges:
+            saved_count = 0
+            for idx, charge in enumerate(charges):
+                # Prepare charge data - handle empty date strings
                 charge_data = {
                     'case_id': case_id,
-                    'party_name': charge.get('party_name'),
                     'ars_code': charge.get('ars_code'),
                     'description': charge.get('description'),
-                    'crime_date': charge.get('crime_date'),
-                    'disposition': charge.get('disposition'),
-                    'disposition_date': charge.get('disposition_date'),
+                    'crime_date': charge.get('crime_date') or None,
+                    'disposition': charge.get('disposition') or None,
                     'created_at': datetime.now().isoformat()
                 }
-                self.supabase.table('case_charges').insert(charge_data).execute()
                 
+                # Only add disposition_date if it's not empty
+                disp_date = charge.get('disposition_date')
+                if disp_date and disp_date.strip():
+                    charge_data['disposition_date'] = disp_date
+                else:
+                    charge_data['disposition_date'] = None
+                
+                # Log what we're trying to save
+                logger.info(f"Saving charge {idx+1}: ARS {charge_data['ars_code']}")
+                
+                try:
+                    result = self.supabase.table('case_charges').insert(charge_data).execute()
+                    if result.data:
+                        saved_count += 1
+                        logger.info(f"Successfully saved charge {idx+1}")
+                    else:
+                        logger.error(f"No data returned when saving charge {idx+1}")
+                except Exception as e:
+                    logger.error(f"Error saving charge {idx+1}: {e}")
+                    logger.error(f"Charge data: {charge_data}")
+            
+            logger.info(f"Saved {saved_count}/{len(charges)} charges for case {case_id}")
+                    
         except Exception as e:
             logger.error(f"Failed to save charges for case {case_id}: {e}")
+            import traceback
+            logger.error(f"Full error: {traceback.format_exc()}")
     
     def save_calendar(self, case_id: int, calendar_entries: List[Dict[str, Any]]):
         """Save calendar entries to case_calendar table."""

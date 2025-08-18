@@ -41,7 +41,46 @@ class MaricopaArraignmentScraper:
         }
     
     def setup_driver(self):
-        """Set up Chrome WebDriver."""
+        """Set up browser WebDriver - tries Firefox first, then Chrome."""
+        import os
+        
+        # Try Firefox first if Chrome is not available
+        if not os.path.exists('/usr/bin/google-chrome') and not os.path.exists('/usr/bin/chromium-browser'):
+            try:
+                from selenium.webdriver.firefox.service import Service as FirefoxService
+                from selenium.webdriver.firefox.options import Options as FirefoxOptions
+                
+                firefox_options = FirefoxOptions()
+                if self.config.get('headless', True):
+                    firefox_options.add_argument('--headless')
+                
+                firefox_options.add_argument('--width=1920')
+                firefox_options.add_argument('--height=1080')
+                
+                # Try to use geckodriver
+                if os.path.exists('/usr/local/bin/geckodriver'):
+                    service = FirefoxService('/usr/local/bin/geckodriver')
+                elif os.path.exists('/usr/bin/geckodriver'):
+                    service = FirefoxService('/usr/bin/geckodriver')
+                else:
+                    # Try webdriver-manager for Firefox
+                    try:
+                        from webdriver_manager.firefox import GeckoDriverManager
+                        service = FirefoxService(GeckoDriverManager().install())
+                        logger.info("Using webdriver-manager for GeckoDriver")
+                    except ImportError:
+                        logger.info("Using system geckodriver")
+                        service = FirefoxService()
+                
+                self.driver = webdriver.Firefox(service=service, options=firefox_options)
+                self.driver.set_page_load_timeout(30)
+                logger.info("Firefox WebDriver initialized successfully")
+                return
+            except Exception as e:
+                logger.warning(f"Failed to initialize Firefox: {e}")
+                # Fall through to try Chrome
+        
+        # Try Chrome setup
         from selenium.webdriver.chrome.service import Service
         
         options = Options()
@@ -54,7 +93,6 @@ class MaricopaArraignmentScraper:
         options.add_argument('--disable-gpu')
         options.add_argument('--window-size=1920,1080')
         
-        import os
         # In Docker, use the correct Chrome paths
         if os.path.exists('/usr/bin/google-chrome'):
             options.binary_location = '/usr/bin/google-chrome'
@@ -85,7 +123,7 @@ class MaricopaArraignmentScraper:
                     
             self.driver = webdriver.Chrome(service=service, options=options)
             self.driver.set_page_load_timeout(30)
-            logger.info("WebDriver initialized")
+            logger.info("Chrome WebDriver initialized")
         except Exception as e:
             logger.error(f"Failed to initialize WebDriver: {e}")
             raise

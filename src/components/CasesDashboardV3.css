@@ -726,6 +726,118 @@
   border-left: 3px solid #667eea;
 }
 
+/* Enhanced Charges Section */
+.charges-section h4 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.charge-item {
+  background: #f8f9fa;
+  border-left: 3px solid #667eea;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 0 6px 6px 0;
+}
+
+.charge-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.charge-code {
+  font-weight: 700;
+  color: #2d3748;
+  font-size: 0.95rem;
+}
+
+.severity-badge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.severity-badge.felony {
+  background: #fed7d7;
+  color: #742a2a;
+}
+
+.severity-badge.misdemeanor {
+  background: #feebc8;
+  color: #744210;
+}
+
+.severity-badge.violation {
+  background: #e6fffa;
+  color: #234e52;
+}
+
+.charge-description {
+  color: #4a5568;
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
+}
+
+.charge-date {
+  font-size: 0.875rem;
+  color: #718096;
+  margin-bottom: 0.25rem;
+}
+
+.disposition-info {
+  background: white;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-top: 0.5rem;
+}
+
+.disposition {
+  color: #2d3748;
+  margin-bottom: 0.25rem;
+}
+
+.disposition-date {
+  font-size: 0.875rem;
+  color: #718096;
+}
+
+/* Case History Link */
+.case-history-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-weight: 600;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.case-history-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.external-link-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.case-history-note {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: #718096;
+  font-style: italic;
+}
+
 /* Loading State */
 .loading-spinner {
   display: inline-block;

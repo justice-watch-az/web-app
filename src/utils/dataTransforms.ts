@@ -110,8 +110,8 @@ export const parseDocketEntries = (caseData: CaseWithRelations) => {
     ars_code: charge.ars_code || '',
     description: charge.description || '',
     date: charge.crime_date || '',
-    severity: charge.severity || '',
-    disposition: charge.disposition || ''
+    disposition: charge.disposition || '',
+    disposition_date: charge.disposition_date || ''
   }));
 };
 
