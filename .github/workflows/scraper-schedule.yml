@@ -37,8 +37,16 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          playwright install chromium
-          playwright install-deps chromium
+          
+      - name: Setup Chrome for Selenium
+        uses: browser-actions/setup-chrome@latest
+        with:
+          chrome-version: stable
+          
+      - name: Setup ChromeDriver
+        uses: browser-actions/setup-chromedriver@latest
+        with:
+          chromedriver-version: stable
           
       - name: Run arraignment scraper
         env:
