@@ -23,7 +23,16 @@ jobs:
         run: |
           python --version
           pip install -r requirements.txt
-          playwright install chromium
+          
+      - name: Setup Chrome for testing
+        uses: browser-actions/setup-chrome@latest
+        with:
+          chrome-version: stable
+          
+      - name: Setup ChromeDriver for testing
+        uses: browser-actions/setup-chromedriver@latest
+        with:
+          chromedriver-version: stable
           
       - name: Test scraper import
         run: |
