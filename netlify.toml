@@ -6,9 +6,12 @@
   
   # Directory to deploy (Vite output)
   publish = "dist"
-  
-  # Node version
-  environment = { NODE_VERSION = "18" }
+
+# Environment variables (configured in Netlify dashboard)
+[build.environment]
+  NODE_VERSION = "18"
+  VITE_SUPABASE_URL = "https://yylmsozhbhqebywavlzr.supabase.co"
+  VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5bG1zb3poYmhxZWJ5d2F2bHpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU0OTAzMTAsImV4cCI6MjA3MTA2NjMxMH0.I8osluXaXa4KOiRQ1JZrccFMY3F9Qpd4UelYQcMVpv0"
 
 # Redirect all routes to index.html for React Router
 [[redirects]]
@@ -16,17 +19,8 @@
   to = "/index.html"
   status = 200
 
-# API proxy to Supabase (no backend needed!)
-[[redirects]]
-  from = "/api/*"
-  to = "https://YOUR_PROJECT_ID.supabase.co/:splat"
-  status = 200
-  headers = {X-Custom-Header = "Justice-Watch"}
-
-# Environment variables (set in Netlify dashboard)
-[build.environment]
-  VITE_SUPABASE_URL = "YOUR_SUPABASE_URL"
-  VITE_SUPABASE_ANON_KEY = "YOUR_ANON_KEY"
+# Remove API proxy since we connect directly to Supabase
+# No backend proxy needed for serverless architecture
 
 # Serverless functions directory
 [functions]
