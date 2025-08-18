@@ -657,19 +657,27 @@ class MaricopaArraignmentScraper:
             if self.driver:
                 self.driver.quit()
         
+        logger.info(f"Returning result with status: {result.get('status')}")
+        logger.info(f"Total arraignment cases to return: {len(result.get('arraignment_cases', []))}")
         return result
 
 
 if __name__ == "__main__":
     import sys
     
+    logger.info("Script started from __main__ block")
+    
     try:
         # Get config if provided
         config = json.loads(sys.argv[1]) if len(sys.argv) > 1 else {}
+        logger.info(f"Config: {config}")
         
         # Run the scraper
         scraper = MaricopaArraignmentScraper(config)
         result = scraper.run()
+        
+        logger.info(f"Scraper completed with status: {result.get('status')}")
+        logger.info(f"Cases found: {len(result.get('arraignment_cases', []))}")
         
         # Write to Supabase if we have arraignment cases
         if result.get('status') == 'success' and result.get('arraignment_cases'):
@@ -683,8 +691,13 @@ if __name__ == "__main__":
                 result['database_write'] = {'status': 'error', 'error': str(db_error)}
         
         # Output result as JSON
-        print(json.dumps(result))
+        logger.info("About to output JSON result")
+        output_json = json.dumps(result)
+        logger.info(f"JSON length: {len(output_json)} characters")
+        print(output_json)
+        logger.info("JSON output complete")
         
     except Exception as e:
+        logger.error(f"Fatal error in main: {e}")
         print(json.dumps({"error": str(e)}), file=sys.stderr)
         sys.exit(1)
