@@ -720,7 +720,7 @@ if __name__ == "__main__":
         # Write to Supabase if we have arraignment cases
         if result.get('status') == 'success' and result.get('arraignment_cases'):
             try:
-                from supabase_writer_fixed import write_scraper_results_to_supabase
+                from supabase_writer import write_scraper_results_to_supabase
                 db_result = write_scraper_results_to_supabase(result)
                 result['database_write'] = db_result
                 logger.info(f"Database write result: {db_result}")

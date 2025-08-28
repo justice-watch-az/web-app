@@ -69,3 +69,65 @@ PostgreSQL with these key tables:
 - Scraper targets: "Arraignment Hearing - Long Form" cases only
 - Test court: Agua Fria (usually has 1 arraignment)
 - All 26 Maricopa County Justice Courts are discovered automatically
+
+## PRP System Integration
+
+### What is the PRP System?
+
+PRPs (Pull Request Proposals) are structured documents that define tasks before implementation. This project uses Approach 2 (Framework Import) from the PRP system.
+
+### Project Structure with PRPs
+
+```
+web-app/                    # Your project root
+├── .claude/               # Framework commands
+│   └── commands/          # Custom commands (future)
+├── PRPs/                  # PRP system
+│   ├── templates/         # Reusable templates
+│   │   ├── prp-base-template.md
+│   │   ├── prp-bug-template.md
+│   │   └── prp-refactor-template.md
+│   └── features/          # Your project PRPs
+├── src/                   # Your existing code
+├── scrapers/              # Python scrapers
+└── CLAUDE.md              # This file
+```
+
+### How to Use PRPs
+
+1. **Creating a Task PRP**:
+   ```bash
+   # Copy a template
+   cp PRPs/templates/prp-base-template.md PRPs/features/prp-feature-new-scraper.md
+   
+   # Edit the PRP with specifications
+   # Then reference it when implementing
+   ```
+
+2. **PRP Workflow**:
+   - Define the task in a PRP
+   - Review and refine requirements
+   - Implement based on PRP specs
+   - Check off success criteria
+
+### Benefits for Justice Watch
+
+- **Scraper Changes**: Document each scraper modification in a PRP
+- **Feature Additions**: Plan new features before coding
+- **Bug Fixes**: Track and document fixes systematically
+- **Team Collaboration**: Share clear specs with team
+
+### Example PRPs for This Project
+
+- `prp-bug-scraper-navigation.md` - Fix URL construction issues
+- `prp-feature-court-filtering.md` - Add court selection features
+- `prp-refactor-database-schema.md` - Optimize database structure
+
+### Project-Specific Instructions
+
+- Project root: ./
+- Primary language: TypeScript (frontend), Python (scrapers)
+- Database: Supabase (PostgreSQL)
+- Testing: npm run lint && npm run typecheck
+- u should do all the building and testing of docker with the docker mcp
+- plz note we will use a versioning system like this: A1-0, A1-1 , A1-9, A2-0 etc

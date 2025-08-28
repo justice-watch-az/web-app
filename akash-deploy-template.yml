@@ -1,0 +1,48 @@
+---
+version: "2.0"
+
+services:
+  web:
+    # Update this to your Docker Hub image with appropriate tag
+    image: arealicehole/justice-watch-scraper:A1-7
+    env:
+      # IMPORTANT: Replace these with your actual Supabase credentials
+      - SUPABASE_URL=your_supabase_url_here
+      - SUPABASE_SERVICE_KEY=your_service_key_here
+      - SCHEDULE_ENABLED=true
+      - RUN_ON_STARTUP=true
+      - CHROME_HEADLESS=true
+    expose:
+      - port: 3000
+        as: 80
+        to:
+          - global: true
+
+profiles:
+  compute:
+    web:
+      resources:
+        cpu:
+          units: 0.5
+        memory:
+          size: 1Gi
+        storage:
+          size: 512Mi
+  
+  placement:
+    westcoast:
+      attributes:
+        host: akash
+      signedBy:
+        anyOf:
+          - "akash1365yvmc4s7awdyj3n2sav7xfx76adc6dnmlx63"
+      pricing:
+        web:
+          denom: uakt
+          amount: 1000
+
+deployment:
+  web:
+    westcoast:
+      profile: web
+      count: 1

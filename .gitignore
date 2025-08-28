@@ -1,20 +1,34 @@
 # Dependencies
 node_modules/
 package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
 # Environment files
 .env
+.env.*
 .env.local
 .env.production
+.env.development
+.env.test
 .env.github
 
 # Build output
 dist/
+build/
+out/
+.next/
+.nuxt/
+.cache/
 
 # Logs
 *.log
 logs/
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
 
 # Python
 __pycache__/
@@ -25,31 +39,140 @@ __pycache__/
 env/
 venv/
 .venv
+ENV/
+env.bak/
+venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+*.egg-info/
+*.egg
+MANIFEST
 
 # Database
 *.db
 *.sqlite
 *.sqlite3
+*.sql
+database.db
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*.swn
 *~
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
 
 # OS
 .DS_Store
+.DS_Store?
+._*
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
 
 # Temporary files
 *.tmp
 *.temp
+*.bak
+*.backup
+*.old
 cookies.txt
 exported_*.csv
 exported_*.json
+temp/
+tmp/
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+*.pid
+*.seed
+*.pid.lock
 
 # Docker volumes
 data/
 postgres-data/
 redis-data/
+volumes/
+
+# Testing
+coverage/
+*.lcov
+.nyc_output/
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Claude and development tools
+.claude/
+.serena/
+prp-temp/
+PRPs/
+
+# Akash deployment (production - contains secrets)
+akash-deploy.yml
+akash-deploy.prod.yml
+akash-deploy.*.yml
+deploy.sdl
+
+# Security - Never commit these
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+private/
+secrets/
+credentials/
+.secret
+.secrets/
+
+# Scraped data (may contain PII)
+scraped_data/
+court_data/
+case_exports/
+
+# Chrome/Selenium
+chromedriver
+geckodriver
+selenium-screenshots/
+.selenium/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# MacOS
+.AppleDouble
+.LSOverride
+Icon
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db:encryptable
+[Dd]esktop.ini
+
+# Linux
+.directory
+.Trash-*
+.nfs*
