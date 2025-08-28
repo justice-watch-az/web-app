@@ -37,6 +37,7 @@ import {
   sortCases,
   generateCSV
 } from '../utils/dataTransforms';
+import { isUpcomingCase } from '../utils/dateHelpers';
 import type { CaseWithRelations, Statistics } from '../types/database';
 
 // Import new real-time components
@@ -62,7 +63,7 @@ function CasesDashboardV3() {
   const [selectedCase, setSelectedCase] = useState<CaseWithRelations | null>(null);
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [loading, setLoading] = useState(true);
-  const [hideOldCases, setHideOldCases] = useState(false);
+  const [showUpcomingOnly, setShowUpcomingOnly] = useState(true); // Default to true
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCourts, setSelectedCourts] = useState<string[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<string[]>([]);
@@ -352,14 +353,11 @@ function CasesDashboardV3() {
       });
     }
     
-    // Hide old cases if needed
-    if (hideOldCases) {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      
+    // Show only upcoming cases if checkbox is checked
+    if (showUpcomingOnly) {
       filtered = filtered.filter(c => {
-        const date = new Date(c.scraped_at);
-        return date > thirtyDaysAgo;
+        // Use next_hearing date for filtering
+        return isUpcomingCase(c.next_hearing);
       });
     }
     
@@ -789,10 +787,10 @@ function CasesDashboardV3() {
               <label className="checkbox-filter">
                 <input
                   type="checkbox"
-                  checked={hideOldCases}
-                  onChange={(e) => setHideOldCases(e.target.checked)}
+                  checked={showUpcomingOnly}
+                  onChange={(e) => setShowUpcomingOnly(e.target.checked)}
                 />
-                Hide Past Cases
+                Show upcoming only
               </label>
             </div>
           </div>
