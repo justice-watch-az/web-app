@@ -397,6 +397,7 @@
 .case-card.is-new {
   animation: slideInNew 0.5s ease-out;
   position: relative;
+  overflow: visible;
 }
 
 .case-card.is-new::before {
