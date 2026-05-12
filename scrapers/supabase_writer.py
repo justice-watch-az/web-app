@@ -126,6 +126,11 @@ class SupabaseWriter:
                     if calendar_entries:
                         self.save_calendar(case_id, calendar_entries)
                     
+                    # Save parties - extract from raw_data.party_information
+                    party_info = case.get('raw_data', {}).get('party_information', {})
+                    if party_info:
+                        self.save_parties(case_id, party_info)
+                    
             except Exception as e:
                 logger.error(f"Failed to save case {case.get('case_number')}: {e}")
                 stats['errors'] += 1
@@ -187,6 +192,43 @@ class SupabaseWriter:
             import traceback
             logger.error(f"Full error: {traceback.format_exc()}")
     
+    def save_parties(self, case_id: str, party_information: Dict[str, Any]):
+        """Save party information (plaintiff/defendant) to case_parties table."""
+        if not party_information:
+            logger.info(f"No party information for case {case_id}")
+            return
+        
+        try:
+            # Delete existing parties for this case
+            self.supabase.table('case_parties').delete().eq('case_id', case_id).execute()
+            
+            saved_count = 0
+            for party_type in ['plaintiff', 'defendant']:
+                party = party_information.get(party_type)
+                if not party or not party.get('party_name'):
+                    continue
+                
+                party_data = {
+                    'case_id': case_id,
+                    'party_type': party_type,
+                    'party_name': party.get('party_name'),
+                    'relationship': party.get('relationship'),
+                    'sex': party.get('sex'),
+                    'attorney': party.get('attorney'),
+                    'created_at': datetime.now().isoformat()
+                }
+                
+                result = self.supabase.table('case_parties').insert(party_data).execute()
+                if result.data:
+                    saved_count += 1
+            
+            logger.info(f"Saved {saved_count} parties for case {case_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to save parties for case {case_id}: {e}")
+            import traceback
+            logger.error(f"Full error: {traceback.format_exc()}")
+
     def save_calendar(self, case_id: int, calendar_entries: List[Dict[str, Any]]):
         """Save calendar entries to case_calendar table."""
         try:
@@ -211,26 +253,95 @@ class SupabaseWriter:
     def close(self):
         """Close database connection (Supabase handles this automatically)."""
         logger.info("Supabase connection closed")
+    
+    def backfill_missing_parties(self) -> Dict[str, Any]:
+        """
+        Backfill party data for existing cases that have party_information in raw_data
+        but no entries in the case_parties table.
+        """
+        stats = {
+            'checked': 0,
+            'backfilled': 0,
+            'skipped': 0,
+            'errors': 0
+        }
+        
+        try:
+            # Get all cases
+            result = self.supabase.table('cases').select('id,case_number,raw_data').execute()
+            if not result.data:
+                logger.info("No cases found for backfill")
+                return stats
+            
+            cases = result.data
+            stats['checked'] = len(cases)
+            logger.info(f"Checking {len(cases)} cases for missing parties...")
+            
+            for case in cases:
+                try:
+                    case_id = case['id']
+                    
+                    # Check if parties already exist for this case
+                    existing = self.supabase.table('case_parties').select('id').eq('case_id', case_id).execute()
+                    if existing.data and len(existing.data) > 0:
+                        stats['skipped'] += 1
+                        continue
+                    
+                    # Extract party_information from raw_data
+                    raw_data = case.get('raw_data')
+                    if not raw_data:
+                        stats['skipped'] += 1
+                        continue
+                    
+                    if isinstance(raw_data, str):
+                        raw_data = json.loads(raw_data)
+                    
+                    party_info = raw_data.get('party_information', {})
+                    if not party_info:
+                        stats['skipped'] += 1
+                        continue
+                    
+                    # Save parties
+                    self.save_parties(case_id, party_info)
+                    stats['backfilled'] += 1
+                    
+                except Exception as e:
+                    logger.error(f"Backfill error for case {case.get('case_number')}: {e}")
+                    stats['errors'] += 1
+            
+            logger.info(f"Backfill complete: {stats}")
+            
+        except Exception as e:
+            logger.error(f"Backfill failed: {e}")
+        
+        return stats
 
 
 def write_scraper_results_to_supabase(scraper_result: Dict[str, Any]) -> Dict[str, Any]:
     """
     Main function to write scraper results to Supabase.
     Called after scraper completes.
+    Always runs backfill for missing parties regardless of new cases found.
     """
     try:
         # Initialize writer
         writer = SupabaseWriter()
         
+        stats = {'total_cases': 0, 'saved': 0, 'skipped': 0, 'errors': 0}
+        
         # Get arraignment cases from scraper result
         cases = scraper_result.get('arraignment_cases', [])
         
-        if not cases:
-            logger.warning("No arraignment cases to save")
-            return {'status': 'success', 'message': 'No cases to save'}
+        if cases:
+            # Save cases to database
+            stats = writer.save_arraignment_cases(cases)
+        else:
+            logger.warning("No arraignment cases to save — running backfill only")
         
-        # Save cases to database
-        stats = writer.save_arraignment_cases(cases)
+        # ALWAYS run backfill — even when no new cases found
+        logger.info("Running party backfill check...")
+        backfill_stats = writer.backfill_missing_parties()
+        logger.info(f"Backfill results: {backfill_stats}")
         
         # Close connection
         writer.close()
@@ -238,6 +349,7 @@ def write_scraper_results_to_supabase(scraper_result: Dict[str, Any]) -> Dict[st
         return {
             'status': 'success',
             'stats': stats,
+            'backfill': backfill_stats,
             'database': writer.supabase_url
         }
         
@@ -253,6 +365,16 @@ if __name__ == "__main__":
     # Test the writer
     logging.basicConfig(level=logging.INFO)
     
-    # Test connection
+    import sys
+    
     writer = SupabaseWriter()
     print(f"Connected to: {writer.supabase_url}")
+    
+    if len(sys.argv) > 1 and sys.argv[1] == '--backfill':
+        print("Running standalone party backfill...")
+        stats = writer.backfill_missing_parties()
+        print(f"Backfill complete: {stats}")
+    else:
+        print("Connection verified. Use --backfill to run party backfill.")
+    
+    writer.close()

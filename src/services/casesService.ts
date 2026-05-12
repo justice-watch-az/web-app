@@ -222,18 +222,22 @@ export const getStatistics = async (): Promise<Statistics> => {
 
 // Get last scrape information
 export const getLastScrapeInfo = async () => {
+  // Note: scrape_logs table doesn't exist in production — use cases.scraped_at instead
   const { data, error } = await supabase
-    .from('scrape_logs')
-    .select('*')
-    .order('created_at', { ascending: false })
+    .from('cases')
+    .select('scraped_at, case_number')
+    .order('scraped_at', { ascending: false })
     .limit(1)
     .single();
 
-  if (error && error.code !== 'PGRST116') { // Ignore "no rows" error
+  if (error && error.code !== 'PGRST116') {
     console.error('Error fetching last scrape info:', error);
   }
 
-  return data;
+  return data ? { 
+    last_scraped_at: data.scraped_at,
+    last_case_number: data.case_number
+  } : null;
 };
 
 // Subscribe to new cases (real-time)

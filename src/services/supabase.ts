@@ -26,7 +26,7 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
 // Helper to check if Supabase is connected
 export const checkConnection = async (): Promise<boolean> => {
   try {
-    const { error } = await supabase.from('court_cases').select('count').limit(1);
+    const { error } = await supabase.from('cases').select('count').limit(1);
     return !error;
   } catch {
     return false;
