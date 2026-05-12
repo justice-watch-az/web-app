@@ -824,7 +824,12 @@ function CasesDashboardV3() {
                           )}
                         </div>
                         <div className="case-card-footer">
-                          {caseItem.next_hearing && (
+                          {/* Show hearing time from case_calendar, fall back to next_hearing */}
+                          {caseItem.case_calendar?.[0]?.hearing_time ? (
+                            <span className="hearing-time">
+                              {formatTime(caseItem.case_calendar[0].hearing_time)}
+                            </span>
+                          ) : caseItem.next_hearing && (
                             <span className="hearing-time">
                               {formatTime(caseItem.next_hearing)}
                             </span>
