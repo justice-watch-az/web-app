@@ -10,7 +10,6 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "2": "^3.0.0",
     "@apollo/server": "^4.12.2",
     "@apollo/server-plugin-response-cache": "^4.1.4",
     "@supabase/supabase-js": "^2.55.0",
