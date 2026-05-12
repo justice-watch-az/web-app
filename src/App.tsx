@@ -9,7 +9,7 @@ function App() {
     <Router>
       <div className="app-container">
         <nav className="app-nav">
-          <h1>Justice Watch v3</h1>
+          <h1>Justice Watch v3.1</h1>
           <div className="nav-links">
             <a href="/cases">Cases</a>
             <a href="/status">Scrape Status</a>
