@@ -352,6 +352,20 @@
   border-bottom: 2px solid #667eea;
 }
 
+/* Date sub-groups within court groups */
+.date-subgroup {
+  margin-bottom: 2rem;
+}
+
+.date-subheader {
+  color: #4a5568;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0.75rem 0 0.5rem 0;
+  padding-left: 0.75rem;
+  border-left: 3px solid #667eea;
+}
+
 .cases-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

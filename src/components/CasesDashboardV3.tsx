@@ -286,24 +286,39 @@ function CasesDashboardV3() {
     return Object.fromEntries(sortedEntries);
   };
   
-  const groupCasesByCourt = (casesToGroup: CaseWithRelations[]) => {
-    const grouped: Record<string, CaseWithRelations[]> = {};
-    
+  const groupCasesByCourt = (casesToGroup: CaseWithRelations[]): Record<string, Record<string, CaseWithRelations[]>> => {
+    // First group by court
+    const byCourt: Record<string, CaseWithRelations[]> = {};
     casesToGroup.forEach(caseItem => {
       const courtKey = caseItem.court_name || 'Unknown Court';
-      
-      if (!grouped[courtKey]) {
-        grouped[courtKey] = [];
-      }
-      grouped[courtKey].push(caseItem);
+      if (!byCourt[courtKey]) byCourt[courtKey] = [];
+      byCourt[courtKey].push(caseItem);
     });
     
-    // Sort by court name alphabetically
-    const sortedEntries = Object.entries(grouped).sort(([a], [b]) => 
-      a.localeCompare(b)
-    );
+    // Then within each court, group by hearing date
+    const result: Record<string, Record<string, CaseWithRelations[]>> = {};
+    Object.entries(byCourt)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .forEach(([courtName, courtCases]) => {
+        const byDate: Record<string, CaseWithRelations[]> = {};
+        courtCases.forEach(caseItem => {
+          const dateKey = caseItem.next_hearing 
+            ? new Date(caseItem.next_hearing).toDateString()
+            : 'No Hearing Date';
+          if (!byDate[dateKey]) byDate[dateKey] = [];
+          byDate[dateKey].push(caseItem);
+        });
+        
+        // Sort dates chronologically
+        const sortedEntries = Object.entries(byDate).sort(([a], [b]) => {
+          if (a === 'No Hearing Date') return 1;
+          if (b === 'No Hearing Date') return -1;
+          return new Date(a).getTime() - new Date(b).getTime();
+        });
+        result[courtName] = Object.fromEntries(sortedEntries);
+      });
     
-    return Object.fromEntries(sortedEntries);
+    return result;
   };
   
   const formatDateHeader = (dateString: string) => {
@@ -677,9 +692,52 @@ function CasesDashboardV3() {
   const filteredCases = getFilteredCases();
   
   // Group cases by date or court based on sort selection
-  const groupedCases = sortBy === 'court' 
-    ? groupCasesByCourt(filteredCases)
-    : groupCasesByDate(filteredCases);
+  const groupedByCourt = sortBy === 'court' ? groupCasesByCourt(filteredCases) : null;
+  const groupedByDate = sortBy === 'date' ? groupCasesByDate(filteredCases) : null;
+  
+  // Shared case card renderer — avoids duplicating card markup
+  const renderCaseCards = (casesList: CaseWithRelations[]) => (
+    <div className="cases-grid">
+      {casesList.map(caseItem => {
+        const parties = parseParties(caseItem);
+        return (
+          <div 
+            key={caseItem.id} 
+            className="case-card"
+            onClick={() => setSelectedCase(caseItem)}
+          >
+            <div className="case-card-header">
+              <span className="case-number">{caseItem.case_number}</span>
+              <span className="case-type-badge">{caseItem.case_type}</span>
+            </div>
+            <div className="case-card-body">
+              <p className="case-title">{caseItem.case_title}</p>
+              <p className="case-court">{caseItem.court_name}</p>
+              {parties.defendant && (
+                <p className="case-defendant">
+                  <strong>Defendant:</strong> {parties.defendant.party_name}
+                </p>
+              )}
+            </div>
+            <div className="case-card-footer">
+              {caseItem.case_calendar?.[0]?.hearing_time ? (
+                <span className="hearing-time">
+                  {formatTime(caseItem.case_calendar[0].hearing_time)}
+                </span>
+              ) : caseItem.next_hearing && (
+                <span className="hearing-time">
+                  {formatTime(caseItem.next_hearing)}
+                </span>
+              )}
+              <span className={`status-indicator ${caseItem.status?.toLowerCase()}`}>
+                {caseItem.status}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
     
   const allCourts = [...new Set(cases.map(c => c.court_name).filter(Boolean))];
   const allStatuses = [...new Set(cases.map(c => c.status).filter(Boolean))];
@@ -796,54 +854,33 @@ function CasesDashboardV3() {
           </div>
           
           <div className="cases-container">
-            {Object.entries(groupedCases).map(([groupKey, groupCases]) => (
-              <div key={groupKey} className="case-group">
-                <h3 className="group-header">
-                  {sortBy === 'court' ? groupKey : formatDateHeader(groupKey)}
-                </h3>
-                <div className="cases-grid">
-                  {groupCases.map(caseItem => {
-                    const parties = parseParties(caseItem);
-                    return (
-                      <div 
-                        key={caseItem.id} 
-                        className="case-card"
-                        onClick={() => setSelectedCase(caseItem)}
-                      >
-                        <div className="case-card-header">
-                          <span className="case-number">{caseItem.case_number}</span>
-                          <span className="case-type-badge">{caseItem.case_type}</span>
-                        </div>
-                        <div className="case-card-body">
-                          <p className="case-title">{caseItem.case_title}</p>
-                          <p className="case-court">{caseItem.court_name}</p>
-                          {parties.defendant && (
-                            <p className="case-defendant">
-                              <strong>Defendant:</strong> {parties.defendant.party_name}
-                            </p>
-                          )}
-                        </div>
-                        <div className="case-card-footer">
-                          {/* Show hearing time from case_calendar, fall back to next_hearing */}
-                          {caseItem.case_calendar?.[0]?.hearing_time ? (
-                            <span className="hearing-time">
-                              {formatTime(caseItem.case_calendar[0].hearing_time)}
-                            </span>
-                          ) : caseItem.next_hearing && (
-                            <span className="hearing-time">
-                              {formatTime(caseItem.next_hearing)}
-                            </span>
-                          )}
-                          <span className={`status-indicator ${caseItem.status?.toLowerCase()}`}>
-                            {caseItem.status}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
+            {sortBy === 'court' && groupedByCourt ? (
+              // Court grouping with date sub-headers
+              Object.entries(groupedByCourt).map(([courtName, dateGroups]) => (
+                <div key={courtName} className="case-group">
+                  <h3 className="group-header">{courtName}</h3>
+                  {Object.entries(dateGroups).map(([dateKey, dateCases]) => (
+                    <div key={`${courtName}-${dateKey}`} className="date-subgroup">
+                      <h4 className="date-subheader">{formatDateHeader(dateKey)}</h4>
+                      {renderCaseCards(dateCases)}
+                    </div>
+                  ))}
                 </div>
+              ))
+            ) : groupedByDate ? (
+              // Date grouping (default)
+              Object.entries(groupedByDate).map(([groupKey, groupCases]) => (
+                <div key={groupKey} className="case-group">
+                  <h3 className="group-header">{formatDateHeader(groupKey)}</h3>
+                  {renderCaseCards(groupCases)}
+                </div>
+              ))
+            ) : (
+              <div className="empty-state">
+                <h3>No cases found</h3>
+                <p>Try adjusting your filters</p>
               </div>
-            ))}
+            )}
           </div>
         </>
       ) : (

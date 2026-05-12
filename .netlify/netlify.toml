@@ -1,0 +1,54 @@
+headersOrigin = "config"
+redirectsOrigin = "config"
+plugins = []
+functionsDirectory = "/workspace/justice-watch-app/netlify/functions"
+functionsDirectoryOrigin = "config"
+
+[functions]
+
+[functions."*"]
+
+[build]
+publish = "/workspace/justice-watch-app/dist"
+publishOrigin = "config"
+commandOrigin = "config"
+command = "npm run build"
+functions = "/workspace/justice-watch-app/netlify/functions"
+
+[build.environment]
+NODE_VERSION = "20"
+VITE_SUPABASE_URL = "https://yylmsozhbhqebywavlzr.supabase.co"
+VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5bG1zb3poYmhxZWJ5d2F2bHpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU0OTAzMTAsImV4cCI6MjA3MTA2NjMxMH0.I8osluXaXa4KOiRQ1JZrccFMY3F9Qpd4UelYQcMVpv0"
+
+[build.processing]
+
+[build.processing.css]
+
+[build.processing.html]
+
+[build.processing.images]
+
+[build.processing.js]
+
+[build.services]
+
+[[headers]]
+for = "/*"
+
+[headers.values]
+X-Frame-Options = "DENY"
+X-XSS-Protection = "1; mode=block"
+X-Content-Type-Options = "nosniff"
+Referrer-Policy = "no-referrer-when-downgrade"
+
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
