@@ -65,11 +65,13 @@ export const formatTime = (timeStr: string | null | undefined): string => {
   if (!timeStr) return '';
   
   try {
-    // Handle time-only strings (HH:mm:ss)
+    // Handle time-only strings (HH:mm:ss or HH:mm)
     if (timeStr.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
       const [hours, minutes] = timeStr.split(':');
       const hour = parseInt(hours);
-      const ampm = hour >= 12 ? 'PM' : 'AM';
+      // Court hearings occur ~8 AM to ~5 PM. Hours 1-7 are PM.
+      // Hours 8-11 are AM, 12+ are PM (24h logic), 0 is midnight (AM).
+      const ampm = hour >= 12 ? 'PM' : (hour === 0 ? 'AM' : (hour >= 8 ? 'AM' : 'PM'));
       const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
       return `${displayHour}:${minutes} ${ampm}`;
     }
