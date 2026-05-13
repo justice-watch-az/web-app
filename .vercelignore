@@ -1,0 +1,8 @@
+requirements.txt
+pyproject.toml
+python/
+scraper/
+.env
+.git
+.netlify
+node_modules
