@@ -1,0 +1,46 @@
+name: MCSO Booking Scraper
+
+on:
+  schedule:
+    # Every 2 hours — wall is capped at 100 latest in-custody bookings;
+    # cadence tuned so the 100-window never lapses us (measured turnover pending).
+    # Arizona is always UTC-7.
+    - cron: '7 */2 * * *'
+  workflow_dispatch:
+
+jobs:
+  scrape-bookings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run MCSO booking scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          python scrapers/mcso_booking_scraper.py '{"dui_only": true}'
+
+      - name: Notify on failure
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `MCSO booking scraper failed: ${new Date().toLocaleDateString()}`,
+              body: `Check the [workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`,
+              labels: ['bug', 'scraper']
+            })
