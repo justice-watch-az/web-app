@@ -100,6 +100,36 @@ export interface Database {
         };
         Update: Partial<Database['public']['Tables']['scrape_logs']['Insert']>;
       };
+      mcso_bookings: {
+        Row: {
+          id: string;
+          booking_number: string;
+          first_name: string | null;
+          last_name: string | null;
+          charges: string[] | null;
+          charges_raw: string | null;
+          arresting_agency: string | null;
+          is_dui: boolean | null;
+          mugshot_b64: string | null;
+          source: string | null;
+          first_seen_at: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['mcso_bookings']['Row'], 'id' | 'created_at'> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['mcso_bookings']['Insert']>;
+      };
+      scrape_state: {
+        Row: {
+          key: string;
+          value: string | null;
+          updated_at: string | null;
+        };
+        Insert: Database['public']['Tables']['scrape_state']['Row'];
+        Update: Partial<Database['public']['Tables']['scrape_state']['Insert']>;
+      };
     };
     Views: {};
     Functions: {};
@@ -113,6 +143,8 @@ export type CaseParty = Database['public']['Tables']['case_parties']['Row'];
 export type CaseCharge = Database['public']['Tables']['case_charges']['Row'];
 export type CaseCalendar = Database['public']['Tables']['case_calendar']['Row'];
 export type ScrapeLog = Database['public']['Tables']['scrape_logs']['Row'];
+export type McsoBooking = Database['public']['Tables']['mcso_bookings']['Row'];
+export type ScrapeState = Database['public']['Tables']['scrape_state']['Row'];
 
 // Extended types with relationships
 export interface CaseWithRelations extends Case {
