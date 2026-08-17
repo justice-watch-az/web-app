@@ -12,6 +12,8 @@ jobs:
   scrape-bookings:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      issues: write  # allow failure-notification issue creation
 
     steps:
       - uses: actions/checkout@v4
@@ -22,7 +24,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r scrapers/requirements.txt
 
       - name: Run MCSO booking scraper
         env:

@@ -81,7 +81,7 @@ class McsoBookingScraper:
 
     def parse_wall(self, html: str) -> List[Dict[str, Any]]:
         """Extract booking rows from the wall table."""
-        soup = BeautifulSoup(html, "lxml")
+        soup = BeautifulSoup(html, "html.parser")  # stdlib parser — zero deps (runner lacks lxml)
         rows: List[Dict[str, Any]] = []
 
         for tr in soup.find_all("tr"):
