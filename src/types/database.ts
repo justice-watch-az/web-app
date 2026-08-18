@@ -9,6 +9,8 @@ export interface Database {
           id: string;
           case_number: string;
           court_name: string | null;
+          county: string | null;
+          source: string | null;
           case_title: string | null;
           case_type: string | null;
           status: string | null;

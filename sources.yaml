@@ -1,0 +1,73 @@
+# Justice Watch — court / booking sources registry
+# Enable sources carefully; each adapter is an independent failure domain.
+
+sources:
+  - id: maricopa_jc
+    enabled: true
+    type: justice_court_calendar
+    county: maricopa
+    adapter: maricopa_jc
+    schedule: "0 16 * * 1-5"  # ~9 AM MST weekdays (existing workflow)
+    notes: >
+      Existing Selenium scraper against justicecourts.maricopa.gov CourtCalendars.
+      Discovers all 26 JC precincts dynamically.
+
+  - id: maricopa_mcso_booking
+    enabled: true
+    type: jail_booking_wall
+    county: maricopa
+    adapter: mcso_booking
+    schedule: "7 */2 * * *"
+    notes: >
+      MCSO mugshot wall → mcso_bookings (DUI-only). Separate table from cases.
+
+  - id: yavapai_jc_prescott
+    enabled: false  # skeleton only — enable after adapter implemented + QA
+    type: justice_court_calendar
+    county: yavapai
+    adapter: yavapai_jc
+    court_name: Prescott Justice Court
+    entrypoints:
+      - https://apps.yavapaiaz.gov/Courtcalendar_PCC/
+    schedule: "15 16 * * 1-5"
+    notes: >
+      ASP.NET WebForms calendar grid (Case Number, Session Date, Party Name, Court Room).
+      courts.yavapaiaz.gov is 403 from datacenter IPs — do not use as primary entry.
+      Charge/DUI text not on grid; enrichment TBD.
+
+  # Placeholders — URLs unconfirmed (guessed Courtcalendar_* paths 404)
+  - id: yavapai_jc_verde_valley
+    enabled: false
+    type: justice_court_calendar
+    county: yavapai
+    adapter: yavapai_jc
+    court_name: Verde Valley Justice Court
+    entrypoints: []
+    notes: Calendar app path not yet discovered.
+
+  - id: yavapai_jc_mayer
+    enabled: false
+    type: justice_court_calendar
+    county: yavapai
+    adapter: yavapai_jc
+    court_name: Mayer Justice Court
+    entrypoints: []
+    notes: Calendar app path not yet discovered.
+
+  - id: yavapai_jc_seligman
+    enabled: false
+    type: justice_court_calendar
+    county: yavapai
+    adapter: yavapai_jc
+    court_name: Seligman Justice Court
+    entrypoints: []
+    notes: Calendar app path not yet discovered.
+
+  - id: yavapai_jc_bagdad_yarnell
+    enabled: false
+    type: justice_court_calendar
+    county: yavapai
+    adapter: yavapai_jc
+    court_name: Bagdad-Yarnell Justice Court
+    entrypoints: []
+    notes: May be hours-only / no online grid; confirm manually.
