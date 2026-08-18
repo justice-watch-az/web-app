@@ -72,6 +72,28 @@ function CasesDashboardV3() {
   const [activeTab, setActiveTab] = useState<'cases' | 'analytics'>('cases');
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'date' | 'court'>('date');
+  const [selectedCounty, setSelectedCounty] = useState<string>(''); // '' = all counties
+
+  // County-aware external case-history links
+  const getCaseHistoryUrl = (caseItem: CaseWithRelations): string => {
+    if (caseItem.case_url) return caseItem.case_url;
+    if (caseItem.county === 'pima') {
+      // Pima public case lookup (human-facing; has captcha) — prefill impossible, land on search
+      return 'https://www.jp.pima.gov/CaseSearch/';
+    }
+    // Maricopa default (deep link per case number)
+    return `https://justicecourts.maricopa.gov/app/courtrecords/CaseInfo?casenumber=${caseItem.case_number}`;
+  };
+  const getCaseHistoryNote = (caseItem: CaseWithRelations): string => {
+    if (caseItem.county === 'pima') {
+      return `Opens Pima County Consolidated Justice Court case search in a new tab — enter case # ${caseItem.case_number}`;
+    }
+    return 'Opens official Maricopa County court records in a new tab';
+  };
+  const formatCounty = (county: string | null | undefined): string => {
+    if (!county) return 'Maricopa';
+    return county.charAt(0).toUpperCase() + county.slice(1);
+  };
 
   useEffect(() => {
     loadData();
@@ -335,6 +357,11 @@ function CasesDashboardV3() {
 
   const getFilteredCases = () => {
     let filtered = [...cases];
+
+    // Filter by county
+    if (selectedCounty) {
+      filtered = filtered.filter(c => (c.county || 'maricopa') === selectedCounty);
+    }
     
     // Apply search filter
     if (searchQuery) {
@@ -448,6 +475,10 @@ function CasesDashboardV3() {
     
     const parties = parseParties(selectedCase);
     const charges = parseDocketEntries(selectedCase);
+    // Pima stores judge + ARS codes in raw_data (no case_charges rows)
+    const raw = (selectedCase.raw_data || {}) as Record<string, any>;
+    const judge = selectedCase.judge || raw.judge || 'N/A';
+    const rawArsCodes: string[] = Array.isArray(raw.ars_codes) ? raw.ars_codes : [];
     
     return (
       <div className="modal-overlay" onClick={() => setSelectedCase(null)}>
@@ -464,15 +495,14 @@ function CasesDashboardV3() {
               <p><strong>Type:</strong> {selectedCase.case_type}</p>
               <p><strong>Status:</strong> {selectedCase.status}</p>
               <p><strong>Filing Date:</strong> {formatDate(selectedCase.filing_date)}</p>
-              <p><strong>Judge:</strong> {selectedCase.judge || 'N/A'}</p>
+              <p><strong>Judge:</strong> {judge}</p>
               <p><strong>Location:</strong> {selectedCase.location || 'N/A'}</p>
             </div>
             
             <div className="detail-section">
               <h4>Case History</h4>
               <a 
-                href={selectedCase.case_url || 
-                      `https://justicecourts.maricopa.gov/app/courtrecords/CaseInfo?casenumber=${selectedCase.case_number}`}
+                href={getCaseHistoryUrl(selectedCase)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="case-history-link"
@@ -485,7 +515,7 @@ function CasesDashboardV3() {
                 </svg>
               </a>
               <p className="case-history-note">
-                Opens official Maricopa County court records in a new tab
+                {getCaseHistoryNote(selectedCase)}
               </p>
             </div>
             
@@ -544,6 +574,20 @@ function CasesDashboardV3() {
               </div>
             )}
             
+            {charges.length === 0 && rawArsCodes.length > 0 && (
+              <div className="detail-section charges-section">
+                <h4>ARS Codes</h4>
+                <div className="charge-item">
+                  <div className="charge-header">
+                    {rawArsCodes.map((code, idx) => (
+                      <span key={idx} className="charge-code" style={{ marginRight: 8 }}>{code}</span>
+                    ))}
+                  </div>
+                  <p className="charge-description">Reported on the Pima County Consolidated Justice Court calendar</p>
+                </div>
+              </div>
+            )}
+
             {selectedCase.case_calendar && selectedCase.case_calendar.length > 0 && (
               <div className="detail-section">
                 <h4>Upcoming Hearings</h4>
@@ -708,6 +752,9 @@ function CasesDashboardV3() {
           >
             <div className="case-card-header">
               <span className="case-number">{caseItem.case_number}</span>
+              <span className={`county-badge county-${(caseItem.county || 'maricopa').toLowerCase()}`}>
+                {formatCounty(caseItem.county)}
+              </span>
               <span className="case-type-badge">{caseItem.case_type}</span>
             </div>
             <div className="case-card-body">
@@ -741,6 +788,7 @@ function CasesDashboardV3() {
     
   const allCourts = [...new Set(cases.map(c => c.court_name).filter(Boolean))];
   const allStatuses = [...new Set(cases.map(c => c.status).filter(Boolean))];
+  const allCounties = [...new Set(cases.map(c => c.county || 'maricopa'))].sort();
 
   return (
     <div className="dashboard-container">
@@ -800,6 +848,25 @@ function CasesDashboardV3() {
                 >
                   Court
                 </button>
+              </div>
+
+              <div className="sort-toggle county-filter">
+                <label>County:</label>
+                <button
+                  className={`sort-btn ${selectedCounty === '' ? 'active' : ''}`}
+                  onClick={() => setSelectedCounty('')}
+                >
+                  All
+                </button>
+                {allCounties.map(county => (
+                  <button
+                    key={county}
+                    className={`sort-btn ${selectedCounty === county ? 'active' : ''}`}
+                    onClick={() => setSelectedCounty(county)}
+                  >
+                    {formatCounty(county)}
+                  </button>
+                ))}
               </div>
             </div>
             

@@ -479,6 +479,31 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
+.county-badge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.county-badge.county-maricopa {
+  background: #c6f6d5;
+  color: #22543d;
+}
+
+.county-badge.county-pima {
+  background: #bee3f8;
+  color: #2a4365;
+}
+
+.county-badge.county-yavapai {
+  background: #e9d8fd;
+  color: #44337a;
+}
+
 .case-type-badge.criminal {
   background: #fed7d7;
   color: #742a2a;
