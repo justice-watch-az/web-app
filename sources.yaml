@@ -21,6 +21,21 @@ sources:
     notes: >
       MCSO mugshot wall → mcso_bookings (DUI-only). Separate table from cases.
 
+  - id: pima_jc
+    enabled: true  # wired 2026-08-18; DUI-native (Criminal DUI + Criminal Arraignment, no-attorney)
+    type: justice_court_calendar
+    county: pima
+    adapter: pima_jc
+    court_name: Pima County Consolidated Justice Court
+    entrypoints:
+      - https://www.jp.pima.gov/NewCalendar2018/
+    schedule: "30 16 * * 1-5"
+    notes: >
+      ASP.NET calendar with native Criminal DUI case-type filter and event-type
+      filter. Lead gate: Criminal Arraignment + empty attorney field
+      (unrepresented = Steve's Maricopa Long-Form rule, Pima edition).
+      No captcha on calendar; reachable from datacenter egress.
+
   - id: yavapai_jc_prescott
     enabled: false  # skeleton only — enable after adapter implemented + QA
     type: justice_court_calendar
