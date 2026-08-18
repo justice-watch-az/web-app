@@ -1,0 +1,46 @@
+name: Yavapai JC Calendar Scraper
+
+on:
+  schedule:
+    # Weekdays ~9:15 AM Arizona (UTC-7 always) — 15 min offset from Maricopa run.
+    - cron: '15 16 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  scrape-yavapai-jc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      issues: write  # allow failure-notification issue creation
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r scrapers/requirements.txt
+
+      - name: Run Yavapai Prescott JC calendar scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          python scrapers/yavapai_jc_scraper.py
+
+      - name: Notify on failure
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Yavapai JC scraper failed: ${new Date().toLocaleDateString()}`,
+              body: `Check the [workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).`,
+              labels: ['bug', 'scraper']
+            })
