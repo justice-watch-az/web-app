@@ -30,12 +30,13 @@ def run() -> dict:
              "blocked_on_migration": False}
     started = datetime.now(timezone.utc)
 
-    # Scrape today + tomorrow so the evening-before runs still catch next-day
-    # arraignments; daily cadence keeps pagination trivial.
+    # Scrape a full week forward (today..+6d), matching the Maricopa convention
+    # of populating the whole week's arraignment docket. Daily runs upsert the
+    # same case_numbers and pick up schedule changes.
     today = datetime.now()  # runner is UTC; AZ = UTC-7, calendar dates local
     cfg = {
         "start_date": today.strftime("%-m/%-d/%Y"),
-        "end_date": (today + timedelta(days=1)).strftime("%-m/%-d/%Y"),
+        "end_date": (today + timedelta(days=6)).strftime("%-m/%-d/%Y"),
     }
     adapter = PimaJcAdapter()
     leads = adapter.run(cfg)
