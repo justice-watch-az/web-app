@@ -86,7 +86,7 @@ function CasesDashboardV3() {
   };
   const getCaseHistoryNote = (caseItem: CaseWithRelations): string => {
     if (caseItem.county === 'pima') {
-      return `Opens Pima County Consolidated Justice Court case search in a new tab — enter case # ${caseItem.case_number}`;
+      return 'Pima County does not publish direct case pages — their lookup requires a captcha search. Copy the case # below and paste it into their search.';
     }
     return 'Opens official Maricopa County court records in a new tab';
   };
@@ -517,6 +517,17 @@ function CasesDashboardV3() {
               <p className="case-history-note">
                 {getCaseHistoryNote(selectedCase)}
               </p>
+              {selectedCase.county === 'pima' && (
+                <button
+                  className="copy-case-number-btn"
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedCase.case_number);
+                    notifySuccess('Copied', `Case # ${selectedCase.case_number} copied — paste it into the Pima case search`);
+                  }}
+                >
+                  📋 Copy Case # for Pima search
+                </button>
+              )}
             </div>
             
             <div className="detail-section parties-section">

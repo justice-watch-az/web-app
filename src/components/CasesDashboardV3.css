@@ -914,6 +914,24 @@
   font-style: italic;
 }
 
+.copy-case-number-btn {
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  background: #fff;
+  color: #2d3748;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.copy-case-number-btn:hover {
+  background: #ebf4ff;
+  border-color: #63b3ed;
+}
+
 /* Loading State */
 .loading-spinner {
   display: inline-block;
