@@ -131,18 +131,37 @@ class AZPublicAccessClient:
 
     @staticmethod
     def _split_candidates(case_number: str) -> list:
-        """AZ Public Access splits the case number into two boxes. J1303CM2026000242
-        could be (J1303CM, 2026000242) or (J1303, CM2026000242) etc. Try all
-        plausible splits; the first that returns a record wins."""
-        m = re.match(r"^([A-Z])(\d{4})([A-Z]{2})(\d+)$", case_number)
+        """AZ Public Access canonical format is DASHED: J-1303-TR-2026000242.
+        The two search boxes take the prefix (J-1303-TR) and the sequence
+        (2026000242). Verified against live name-search results 2026-08-19."""
+        m = re.match(r"^([A-Z])-?(\d{4})-?([A-Z]{2})-?(\d+)$", case_number)
         if not m:
             return [(case_number, "")]
         letter, court, ctype, seq = m.groups()
         return [
+            (f"{letter}-{court}-{ctype}", seq),
             (f"{letter}{court}{ctype}", seq),
+            (f"{letter}-{court}", f"{ctype}-{seq}"),
             (f"{letter}{court}", f"{ctype}{seq}"),
             (case_number, ""),
         ]
+
+    RESULT_LINK_RE = re.compile(
+        r"__doPostBack\('(ctl00\$ContentPlaceHolder1\$gvSearchResults\$ctl\d+\$lbCaseNum)',''\)"
+    )
+
+    def _follow_first_result(self, results_html: str) -> str | None:
+        """Search returns a GridView; case numbers are postback links. Follow
+        the first one to reach the case detail page (where charges live)."""
+        m = self.RESULT_LINK_RE.search(results_html)
+        if not m:
+            return None
+        soup = BeautifulSoup(results_html, "html.parser")
+        data = _viewstate_fields(soup)
+        data["__EVENTTARGET"] = m.group(1)
+        data["__EVENTARGUMENT"] = ""
+        r = self.session.post(LOOKUP_URL, data=data, timeout=30)
+        return r.text
 
     def _court_value(self, soup: BeautifulSoup, select_name: str, want: str = "Prescott") -> str:
         sel = soup.find("select", {"name": select_name})
@@ -178,7 +197,13 @@ class AZPublicAccessClient:
                 r2 = self.session.post(LOOKUP_URL, data=data, timeout=30)
                 self.last_html = r2.text  # debug aid
                 self._parse_result(r2.text, result)
+                # Result grid has no charges — follow the case link to the
+                # detail page where charges live.
                 if result.found:
+                    detail = self._follow_first_result(r2.text)
+                    if detail:
+                        self.last_html = detail
+                        self._parse_result(detail, result)
                     return result
                 result.error = None  # reset between split attempts
             if not result.found:
@@ -217,7 +242,7 @@ class AZPublicAccessClient:
     def _parse_result(self, html: str, result: CaseCharges) -> None:
         soup = BeautifulSoup(html, "html.parser")
         text = soup.get_text(" ", strip=True)
-        if re.search(r"no (record|case|results?) found", text, re.I):
+        if re.search(r"no (record|case|results?)|0 records found", text, re.I):
             return
         charges = []
         # Charge rows typically show an ARS code and/or a description string.
