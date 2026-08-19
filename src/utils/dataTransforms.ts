@@ -137,6 +137,53 @@ export const getRawData = (caseData: { raw_data?: any }): Record<string, any> =>
   return typeof raw === 'object' ? raw : {};
 };
 
+// Arizona Revised Statutes → plain-English descriptions.
+// Pima's calendar only stores ARS codes; this renders them readably.
+const ARS_DESCRIPTIONS: Record<string, string> = {
+  // DUI
+  '28-1381A1': 'DUI — impaired to the slightest degree (alcohol/drugs/vapors)',
+  '28-1381A2': 'DUI — BAC 0.08 or more',
+  '28-1381A3': 'DUI — drug or metabolite in the body',
+  '28-1382A1': 'Extreme DUI — BAC 0.15 to 0.199',
+  '28-1382A2': 'Super Extreme DUI — BAC 0.20 or more',
+  '28-1383A': 'Aggravated DUI',
+  // Liquor / minors
+  '4-251A1': 'Under 21 — consuming spirituous liquor',
+  '4-251A2': 'Under 21 — possessing spirituous liquor',
+  // Criminal traffic / misc misdemeanors
+  '13-1602A1': 'Criminal damage — reckless damage to property',
+  '13-2506A2': 'Failure to appear — misdemeanor offense',
+  '13-2904A': 'Disorderly conduct',
+  '13-2921A1': 'Harassment',
+  // Vehicle code
+  '28-701.02A3': 'Criminal speeding — excessive speed',
+  '28-702.01A': 'Speeding — greater than reasonable and prudent',
+  '28-2354B1': 'Operating an unregistered vehicle',
+  '28-2531B1': 'Registration tab / sticker violation',
+  '28-2532A': 'License plate display violation',
+  '28-4135C': 'Driving without mandatory insurance',
+  '28-4139A': 'Failure to maintain financial responsibility (insurance)',
+};
+
+// Normalize code variants ("28-701.02.A3" → "28-701.02A3", strip ".MI", uppercase)
+const normalizeArsCode = (code: string): string =>
+  code.toUpperCase().replace(/\.(MI|F\d?|M\d?)$/i, '').replace(/\.(?=[A-Z0-9]+$)/g, '');
+
+const ARS_CODE_PATTERN = /^\d{1,2}-\d{3,4}/;
+
+// Returns "CODE — English description" when the input is a bare ARS code
+// (Pima rows); passes through free-text descriptions unchanged (Yavapai).
+export const describeArsCode = (codeOrText: string): string => {
+  const text = (codeOrText || '').trim();
+  if (!text) return '';
+  if (!ARS_CODE_PATTERN.test(text)) return text; // already a description
+  const normalized = normalizeArsCode(text);
+  const description =
+    ARS_DESCRIPTIONS[normalized] ||
+    ARS_DESCRIPTIONS[normalized.replace(/[A-Z]\d*$/, '')];
+  return description ? `${text} — ${description}` : text;
+};
+
 // Parse charges/docket entries
 export const parseDocketEntries = (caseData: CaseWithRelations) => {
   if (!caseData.case_charges) return [];
