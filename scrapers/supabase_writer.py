@@ -82,7 +82,7 @@ class SupabaseWriter:
                     'scraped_at': datetime.now().isoformat(),
                     'updated_at': datetime.now().isoformat(),
                     'next_hearing': case.get('arraignment_date'),  # Store the date
-                    'raw_data': json.dumps(case.get('raw_data', {}))  # All detailed data goes here
+                    'raw_data': case.get('raw_data') or {}  # jsonb column — pass dict, not json.dumps (double-encodes)
                 }
                 
                 # Check if case already exists
