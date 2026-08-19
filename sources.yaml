@@ -51,7 +51,7 @@ sources:
       charge_enrichment confirms. No public UI surface until then (DUI-only rule).
 
   - id: yavapai_jc_prescott
-    enabled: false  # skeleton only — enable after adapter implemented + QA
+    enabled: true  # wired 2026-08-18 (JWAZ-16); requires JWAZ-14 migration applied
     type: justice_court_calendar
     county: yavapai
     adapter: yavapai_jc
