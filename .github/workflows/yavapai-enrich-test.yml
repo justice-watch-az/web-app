@@ -1,0 +1,21 @@
+# Manual end-to-end test of AZ Public Access charge enrichment (JWAZ-16).
+# Dispatch-only; exercises the live BotDetect gate via 2captcha.
+name: AZPA Enrichment Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r scrapers/requirements.txt
+      - name: Run enrichment live test
+        env:
+          TWOCAPTCHA_API_KEY: ${{ secrets.TWOCAPTCHA_API_KEY }}
+        run: python scrapers/test_azpa_enrichment.py
