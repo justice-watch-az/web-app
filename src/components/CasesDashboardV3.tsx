@@ -34,6 +34,7 @@ import {
   parseParties,
   parseDocketEntries,
   getRawData,
+  describeArsCode,
   filterCases,
   sortCases,
   generateCSV
@@ -600,7 +601,7 @@ function CasesDashboardV3() {
                 {rawArsCodes.map((code, idx) => (
                   <div key={idx} className="charge-item">
                     <div className="charge-header">
-                      <span className="charge-code">{code}</span>
+                      <span className="charge-code">{describeArsCode(code)}</span>
                     </div>
                   </div>
                 ))}
@@ -769,8 +770,8 @@ function CasesDashboardV3() {
           ? getRawData(caseItem).ars_codes
           : [];
         const cardCharges: string[] = docketCharges.length > 0
-          ? docketCharges.map(c => c.description || c.ars_code).filter(Boolean)
-          : rawArs;
+          ? docketCharges.map(c => c.description || describeArsCode(c.ars_code)).filter(Boolean)
+          : rawArs.map(describeArsCode);
         return (
           <div 
             key={caseItem.id} 
