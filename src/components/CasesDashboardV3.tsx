@@ -763,6 +763,14 @@ function CasesDashboardV3() {
     <div className="cases-grid">
       {casesList.map(caseItem => {
         const parties = parseParties(caseItem);
+        // Charges: Maricopa from case_charges rows; Pima/Yavapai from raw_data.ars_codes
+        const docketCharges = parseDocketEntries(caseItem);
+        const rawArs: string[] = Array.isArray(getRawData(caseItem).ars_codes)
+          ? getRawData(caseItem).ars_codes
+          : [];
+        const cardCharges: string[] = docketCharges.length > 0
+          ? docketCharges.map(c => c.description || c.ars_code).filter(Boolean)
+          : rawArs;
         return (
           <div 
             key={caseItem.id} 
@@ -782,6 +790,12 @@ function CasesDashboardV3() {
               {parties.defendant && (
                 <p className="case-defendant">
                   <strong>Defendant:</strong> {parties.defendant.party_name}
+                </p>
+              )}
+              {cardCharges.length > 0 && (
+                <p className="case-charges">
+                  <strong>Charges:</strong> {cardCharges.slice(0, 2).join('; ')}
+                  {cardCharges.length > 2 && ` +${cardCharges.length - 2} more`}
                 </p>
               )}
             </div>
