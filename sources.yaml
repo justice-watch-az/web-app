@@ -36,6 +36,20 @@ sources:
       (unrepresented = Steve's Maricopa Long-Form rule, Pima edition).
       No captcha on calendar; reachable from datacenter egress.
 
+  - id: yavapai_ycso_booking
+    enabled: true  # scraper + workflow live; writes ycso_bookings (unclassified until enrichment)
+    type: jail_booking_roster
+    county: yavapai
+    court_name: Yavapai County Sheriff's Office Detention
+    entrypoints:
+      - https://apps.yavapaiaz.gov/InmateSearch/
+    schedule: "22 */2 * * *"  # every 2h, offset from MCSO wall
+    sink: ycso_bookings
+    notes: >
+      Name-search-only roster swept a-z; current-inmates so 2h polling catches
+      book-and-release DUIs. No charges on roster — is_dui stays NULL until
+      charge_enrichment confirms. No public UI surface until then (DUI-only rule).
+
   - id: yavapai_jc_prescott
     enabled: false  # skeleton only — enable after adapter implemented + QA
     type: justice_court_calendar
