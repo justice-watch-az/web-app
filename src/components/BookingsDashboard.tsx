@@ -28,7 +28,7 @@ const BookingsDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [duiOnly, setDuiOnly] = useState(false);
+  const [county, setCounty] = useState<string>('all');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -48,10 +48,18 @@ const BookingsDashboard: React.FC = () => {
     load();
   }, [load]);
 
+  const bookingCounty = (b: McsoBooking): string =>
+    b.source === 'ycso_booking' ? 'yavapai' : 'maricopa';
+
+  const counties = useMemo(() => {
+    const set = new Set(bookings.map(bookingCounty));
+    return ['all', ...Array.from(set).sort()];
+  }, [bookings]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return bookings.filter((b) => {
-      if (duiOnly && !b.is_dui) return false;
+      if (county !== 'all' && bookingCounty(b) !== county) return false;
       if (!q) return true;
       const hay = [
         b.booking_number,
@@ -66,7 +74,7 @@ const BookingsDashboard: React.FC = () => {
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [bookings, query, duiOnly]);
+  }, [bookings, query, county]);
 
   const duiCount = useMemo(() => bookings.filter((b) => b.is_dui).length, [bookings]);
   const newCount = useMemo(
@@ -78,9 +86,9 @@ const BookingsDashboard: React.FC = () => {
     <div className="bookings-page">
       <header className="bookings-header">
         <div>
-          <h1>MCSO Bookings</h1>
+          <h1>County Jail Bookings</h1>
           <p className="bookings-sub">
-            Mugshot-wall DUI leads · source badge distinguishes MCSO bookings from JC arraignment cases
+            Confirmed-DUI booking leads · MCSO (Maricopa) + YCSO (Yavapai)
           </p>
         </div>
         <button type="button" className="bookings-refresh" onClick={load} disabled={loading}>
@@ -104,6 +112,18 @@ const BookingsDashboard: React.FC = () => {
       </div>
 
       <div className="bookings-toolbar">
+        <div className="bookings-county-chips">
+          {counties.map((c) => (
+            <button
+              key={c}
+              type="button"
+              className={`county-chip ${county === c ? 'active' : ''}`}
+              onClick={() => setCounty(c)}
+            >
+              {c === 'all' ? 'All' : c.charAt(0).toUpperCase() + c.slice(1)}
+            </button>
+          ))}
+        </div>
         <input
           type="search"
           className="bookings-search"
@@ -111,14 +131,6 @@ const BookingsDashboard: React.FC = () => {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <label className="bookings-toggle">
-          <input
-            type="checkbox"
-            checked={duiOnly}
-            onChange={(e) => setDuiOnly(e.target.checked)}
-          />
-          DUI only
-        </label>
       </div>
 
       {error && (
