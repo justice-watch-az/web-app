@@ -62,7 +62,7 @@ def run() -> dict:
             "next_hearing": row["next_hearing"],
             "scraped_at": now,
             "updated_at": now,
-            "raw_data": json.dumps(row["raw_data"] or {}),
+            "raw_data": row["raw_data"] or {},  # jsonb column — pass dict, not json.dumps (double-encodes)
         }
         try:
             sb.table("cases").upsert(payload, on_conflict="case_number").execute()
