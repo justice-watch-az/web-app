@@ -296,6 +296,11 @@ class AZPublicAccessClient:
             result.error = f"{type(e).__name__}: {e}"
         return result
 
+    # Citation row on AZPA detail pages: <citation#> <count> <DESCRIPTION> <disp date|STATE OF...>
+    CITATION_ROW_RE = re.compile(
+        r"\d{10,}\s+(\d+)\s+([A-Z][A-Z0-9 ,'/()\.-]{4,}?)\s+(?=\d{1,2}/\d{1,2}/\d{2,4}|STATE OF|PLAINTIFF)"
+    )
+
     def _parse_result(self, html: str, result: CaseCharges) -> None:
         soup = BeautifulSoup(html, "html.parser")
         text = soup.get_text(" ", strip=True)
@@ -305,6 +310,8 @@ class AZPublicAccessClient:
         # Charge rows typically show an ARS code and/or a description string.
         for m in re.finditer(r"(A\.?R\.?S\.?\s*)?§?\s*(28-?138[123](?:\s*[A-Z]\d*)?)", text, re.I):
             charges.append({"code": m.group(2), "description": ""})
+        for m in self.CITATION_ROW_RE.finditer(text):
+            charges.append({"code": "", "description": m.group(2).strip()})
         for m in re.finditer(r"([A-Z][A-Za-z /-]*DUI[A-Za-z /-]*)", text):
             charges.append({"code": "", "description": m.group(1).strip()})
         # dedupe
