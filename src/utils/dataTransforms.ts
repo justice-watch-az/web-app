@@ -121,6 +121,22 @@ export const parseParties = (caseData: CaseWithRelations) => {
   return parties;
 };
 
+// raw_data is a jsonb column, but some historical rows were double-encoded
+// (inserted as a JSON *string*). Normalize to an object either way.
+export const getRawData = (caseData: { raw_data?: any }): Record<string, any> => {
+  const raw = caseData?.raw_data;
+  if (!raw) return {};
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return typeof raw === 'object' ? raw : {};
+};
+
 // Parse charges/docket entries
 export const parseDocketEntries = (caseData: CaseWithRelations) => {
   if (!caseData.case_charges) return [];

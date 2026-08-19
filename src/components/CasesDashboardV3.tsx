@@ -33,6 +33,7 @@ import {
   formatTime,
   parseParties,
   parseDocketEntries,
+  getRawData,
   filterCases,
   sortCases,
   generateCSV
@@ -483,7 +484,8 @@ function CasesDashboardV3() {
     const parties = parseParties(selectedCase);
     const charges = parseDocketEntries(selectedCase);
     // Pima stores judge + ARS codes in raw_data (no case_charges rows)
-    const raw = (selectedCase.raw_data || {}) as Record<string, any>;
+    // raw_data may be a double-encoded JSON string on historical rows — normalize
+    const raw = getRawData(selectedCase);
     const judge = selectedCase.judge || raw.judge || 'N/A';
     const rawArsCodes: string[] = Array.isArray(raw.ars_codes) ? raw.ars_codes : [];
     
@@ -529,10 +531,10 @@ function CasesDashboardV3() {
                   className="copy-case-number-btn"
                   onClick={() => {
                     navigator.clipboard.writeText(selectedCase.case_number);
-                    notifySuccess('Copied', `Case # ${selectedCase.case_number} copied — paste it into the Pima case search`);
+                    notifySuccess('Copied', `Case # ${selectedCase.case_number} copied — paste it into the ${selectedCase.county === 'yavapai' ? 'AZ Public Access' : 'Pima'} case search`);
                   }}
                 >
-                  📋 Copy Case # for Pima search
+                  📋 Copy Case # for {selectedCase.county === 'yavapai' ? 'AZPA' : 'Pima'} search
                 </button>
               )}
             </div>
@@ -594,15 +596,14 @@ function CasesDashboardV3() {
             
             {charges.length === 0 && rawArsCodes.length > 0 && (
               <div className="detail-section charges-section">
-                <h4>ARS Codes</h4>
-                <div className="charge-item">
-                  <div className="charge-header">
-                    {rawArsCodes.map((code, idx) => (
-                      <span key={idx} className="charge-code" style={{ marginRight: 8 }}>{code}</span>
-                    ))}
+                <h4>Charges ({rawArsCodes.length})</h4>
+                {rawArsCodes.map((code, idx) => (
+                  <div key={idx} className="charge-item">
+                    <div className="charge-header">
+                      <span className="charge-code">{code}</span>
+                    </div>
                   </div>
-                  <p className="charge-description">Reported on the Pima County Consolidated Justice Court calendar</p>
-                </div>
+                ))}
               </div>
             )}
 
