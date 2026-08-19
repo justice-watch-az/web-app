@@ -25,7 +25,7 @@ def main():
     leads = adapter.run()
     cm = [l for l in leads if l.case_type in ("Criminal Misdemeanor", "Criminal Traffic", "Criminal")]
     print(f"Prescott calendar: {len(leads)} rows, {len(cm)} CM/TR")
-    sample = cm[:5]
+    sample = cm[:15]
 
     client = AZPublicAccessClient()
     ok = client.unlock()
