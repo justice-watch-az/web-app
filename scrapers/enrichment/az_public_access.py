@@ -150,15 +150,36 @@ class AZPublicAccessClient:
         r"__doPostBack\('(ctl00\$ContentPlaceHolder1\$gvSearchResults\$ctl\d+\$lbCaseNum)',''\)"
     )
 
-    def _follow_first_result(self, results_html: str) -> str | None:
-        """Search returns a GridView; case numbers are postback links. Follow
-        the first one to reach the case detail page (where charges live)."""
-        m = self.RESULT_LINK_RE.search(results_html)
+    @staticmethod
+    def _canonical(case_number: str) -> str:
+        """J1303TR2026000242 -> J-1303-TR-2026000242 (site display format)."""
+        m = re.match(r"^([A-Z])-?(\d{4})-?([A-Z]{2})-?(\d+)$", case_number)
         if not m:
-            return None
+            return case_number
+        return "-".join(m.groups())
+
+    def _follow_result(self, results_html: str, case_number: str | None = None) -> str | None:
+        """Search returns a GridView; case numbers are postback links. Follow
+        the row matching case_number (or the first row) to the detail page."""
         soup = BeautifulSoup(results_html, "html.parser")
+        target = None
+        if case_number:
+            want = self._canonical(case_number)
+            for a in soup.find_all("a"):
+                href = a.get("href", "")
+                if "lbCaseNum" in href and a.get_text(strip=True) == want:
+                    m = self.RESULT_LINK_RE.search(href)
+                    if m:
+                        target = m.group(1)
+                        break
+        if not target:
+            m = self.RESULT_LINK_RE.search(results_html)
+            if m:
+                target = m.group(1)
+        if not target:
+            return None
         data = _viewstate_fields(soup)
-        data["__EVENTTARGET"] = m.group(1)
+        data["__EVENTTARGET"] = target
         data["__EVENTARGUMENT"] = ""
         r = self.session.post(LOOKUP_URL, data=data, timeout=30)
         return r.text
@@ -172,20 +193,36 @@ class AZPublicAccessClient:
                 return opt.get("value", "0")
         return "0"
 
-    def lookup_case(self, case_number: str) -> CaseCharges:
-        """Fetch charges for one case number. Caller must unlock() first."""
+    def lookup_case(self, case_number: str, party_name: str | None = None) -> CaseCharges:
+        """Fetch charges for one case. Name search is the reliable path
+        (verified live: case-number boxes returned 0 records even with the
+        canonical dashed prefix); we then match the canonical case number in
+        the results grid and follow its postback to the detail page."""
         result = CaseCharges(case_number=case_number)
         if not self._unlocked and not self.unlock():
             result.error = "captcha gate not unlocked"
             return result
         try:
+            if party_name:
+                grid = self._search_by_name(party_name)
+                if grid:
+                    result.found = self._canonical(case_number) in BeautifulSoup(
+                        grid, "html.parser").get_text()
+                    detail = self._follow_result(grid, case_number)
+                    if detail:
+                        self.last_html = detail
+                        self._parse_result(detail, result)
+                        result.found = True
+                    elif result.found:
+                        self.last_html = grid
+                        self._parse_result(grid, result)
+                    return result
             for cnum1, cnum2 in self._split_candidates(case_number):
                 soup = self._get_search_form()
                 if soup is None:
                     result.error = "search form not found (gate re-locked?)"
                     return result
                 data = _viewstate_fields(soup)
-                # Preserve any non-viewstate hidden inputs
                 for inp in soup.find_all("input", {"type": "hidden"}):
                     nm = inp.get("name")
                     if nm and not nm.startswith("__") and nm not in data:
@@ -195,22 +232,42 @@ class AZPublicAccessClient:
                 data[self.COURT_NUM] = self._court_value(soup, self.COURT_NUM)
                 data[self.BTN_NUM] = "Search"
                 r2 = self.session.post(LOOKUP_URL, data=data, timeout=30)
-                self.last_html = r2.text  # debug aid
+                self.last_html = r2.text
                 self._parse_result(r2.text, result)
-                # Result grid has no charges — follow the case link to the
-                # detail page where charges live.
                 if result.found:
-                    detail = self._follow_first_result(r2.text)
+                    detail = self._follow_result(r2.text, case_number)
                     if detail:
                         self.last_html = detail
                         self._parse_result(detail, result)
                     return result
-                result.error = None  # reset between split attempts
+                result.error = None
             if not result.found:
-                result.error = "no record for any split"
+                result.error = "no record found"
         except Exception as e:  # noqa: BLE001 — enrichment must never crash a scrape run
             result.error = f"{type(e).__name__}: {e}"
         return result
+
+    def _search_by_name(self, party_name: str) -> str | None:
+        """POST the name search; return the results-grid HTML (or None)."""
+        parts = (party_name or "").split(",")
+        lname = parts[0].strip()
+        fname = parts[1].strip().split()[0] if len(parts) > 1 and parts[1].strip() else ""
+        if not lname:
+            return None
+        soup = self._get_search_form()
+        if soup is None:
+            return None
+        data = _viewstate_fields(soup)
+        for inp in soup.find_all("input", {"type": "hidden"}):
+            nm = inp.get("name")
+            if nm and not nm.startswith("__") and nm not in data:
+                data[nm] = inp.get("value", "")
+        data[self.LNAME] = lname
+        data[self.FNAME] = fname
+        data[self.COURT_NAME] = self._court_value(soup, self.COURT_NAME)
+        data[self.BTN_NAME] = "Search"
+        r = self.session.post(LOOKUP_URL, data=data, timeout=30)
+        return r.text
 
     def lookup_by_name(self, last_name: str, first_name: str = "") -> CaseCharges:
         """Name-based lookup (for YCSO roster enrichment — no case number yet)."""

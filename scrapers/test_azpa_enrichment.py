@@ -76,7 +76,7 @@ def main():
 
     results = []
     for i, lead in enumerate(sample):
-        info = client.lookup_case(lead.case_number)
+        info = client.lookup_case(lead.case_number, lead.party_name)
         results.append({
             "case_number": info.case_number,
             "found": info.found,

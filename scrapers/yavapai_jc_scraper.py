@@ -61,7 +61,7 @@ def _enrich_dui_only(leads, sb) -> list:
         client = AZPublicAccessClient()  # raises SolverUnavailable w/o key
         now = datetime.now(timezone.utc).isoformat()
         for lead in misses:
-            info = client.lookup_case(lead.case_number)
+            info = client.lookup_case(lead.case_number, getattr(lead, "party_name", None))
             row = {
                 "case_number": lead.case_number,
                 "county": "yavapai",
