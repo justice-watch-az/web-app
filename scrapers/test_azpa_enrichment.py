@@ -34,6 +34,20 @@ def main():
         print(json.dumps({"unlocked": False}, indent=2))
         sys.exit(1)
 
+    # Debug: dump the post-gate form structure
+    from bs4 import BeautifulSoup
+    r = client.session.get(client.__init__.__globals__["LOOKUP_URL"], timeout=30)
+    soup = BeautifulSoup(r.text, "html.parser")
+    print("=== POST-GATE FORM ===")
+    for form in soup.find_all("form"):
+        print("FORM action:", form.get("action"), "method:", form.get("method"))
+        for el in form.find_all(["input", "select", "button"]):
+            print("  ", el.name, "| name:", el.get("name"), "| id:", el.get("id"),
+                  "| type:", el.get("type"), "| value:", (el.get("value") or "")[:40])
+        for sel in form.find_all("select"):
+            opts = [(o.get("value"), o.get_text(strip=True)[:40]) for o in sel.find_all("option")]
+            print("   OPTIONS", sel.get("name"), opts[:25])
+
     results = []
     for lead in sample:
         info = client.lookup_case(lead.case_number)
