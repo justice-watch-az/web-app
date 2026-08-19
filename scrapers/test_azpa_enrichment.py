@@ -54,19 +54,25 @@ def main():
                 print("   OPTIONS", sel.get("name"), opts[:25])
 
     # Name-search sanity test with a known defendant from today's calendar
-    first = sample[0]
+    with_comma = [l for l in sample if "," in (l.party_name or "")]
+    first = with_comma[0] if with_comma else sample[0]
     print("=== NAME SEARCH TEST ===")
     parts = first.party_name.split(",")
     lname = parts[0].strip()
     fname = parts[1].strip().split()[0] if len(parts) > 1 else ""
-    print("searching:", lname, "/", fname, "case:", first.case_number)
+    print("searching:", repr(lname), "/", repr(fname), "case:", first.case_number)
     nres = client.lookup_by_name(lname, fname)
     print("name result:", json.dumps({"found": nres.found, "is_dui": nres.is_dui,
                                     "charges": nres.charges, "error": nres.error}))
     if hasattr(client, "last_html"):
         t = BS(client.last_html, "html.parser").get_text(" ", strip=True)
-        print("=== NAME RESULT PAGE (first 1200 chars) ===")
-        print(t[:1200])
+        print("=== NAME RESULT PAGE (first 2500 chars) ===")
+        print(t[:2500])
+        import re as _re
+        print("case-number-ish strings:", sorted(set(_re.findall(r"[A-Z]-?\d{4}-?[A-Z]{2}-?\d{4}-?\d{4,6}|J1303[A-Z]{2}\d{10}", client.last_html)))[:20])
+        for a in BS(client.last_html, "html.parser").find_all("a", href=True):
+            if "case" in a["href"].lower() or "detail" in a["href"].lower():
+                print("  CASE LINK:", a.get_text(strip=True)[:50], "->", a["href"][:150])
 
     results = []
     for i, lead in enumerate(sample):

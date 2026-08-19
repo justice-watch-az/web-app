@@ -208,6 +208,7 @@ class AZPublicAccessClient:
             data[self.COURT_NAME] = self._court_value(soup, self.COURT_NAME)
             data[self.BTN_NAME] = "Search"
             r2 = self.session.post(LOOKUP_URL, data=data, timeout=30)
+            self.last_html = r2.text  # debug aid
             self._parse_result(r2.text, result)
         except Exception as e:  # noqa: BLE001
             result.error = f"{type(e).__name__}: {e}"
@@ -233,7 +234,8 @@ class AZPublicAccessClient:
                 seen.add(k)
                 uniq.append(c)
         result.charges = uniq
-        result.found = bool(uniq) or result.case_number.replace("-", "").lower() in text.replace("-", "").lower()
+        cn = result.case_number.replace("-", "").lower()
+        result.found = bool(uniq) or (bool(cn) and cn in text.replace("-", "").lower())
         blob = text
         result.is_dui = bool(DUI_ARS_RE.search(blob) or DUI_WORD_RE.search(blob))
 
