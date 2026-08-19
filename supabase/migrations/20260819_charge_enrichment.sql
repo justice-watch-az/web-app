@@ -18,6 +18,9 @@ CREATE INDEX IF NOT EXISTS idx_charge_enrichment_dui
 
 ALTER TABLE charge_enrichment ENABLE ROW LEVEL SECURITY;
 
--- Public read (the /cases UI may surface charge data later)
-CREATE POLICY IF NOT EXISTS "charge_enrichment_public_read"
+-- Public read (the /cases UI may surface charge data later).
+-- Postgres has no CREATE POLICY IF NOT EXISTS — drop-then-create is the
+-- idempotent pattern.
+DROP POLICY IF EXISTS "charge_enrichment_public_read" ON charge_enrichment;
+CREATE POLICY "charge_enrichment_public_read"
     ON charge_enrichment FOR SELECT USING (true);
