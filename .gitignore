@@ -176,3 +176,14 @@ Thumbs.db:encryptable
 .Trash-*
 .nfs*
 .vercel
+
+# JWAZ-5 address pilot PII (leads, scores with names, raw vendor dumps)
+docs/pilots/**/raw/
+docs/pilots/*leads*.csv
+docs/pilots/*scores*.csv
+docs/pilots/*scores*.xlsx
+!docs/pilots/*.TEMPLATE.csv
+!docs/pilots/README.md
+# keep empty templates trackable even if glob matched
+!docs/pilots/jwaz5-address-pilot-leads.TEMPLATE.csv
+!docs/pilots/jwaz5-address-pilot-scores.TEMPLATE.csv
