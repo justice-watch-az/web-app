@@ -65,7 +65,7 @@ def _enrich_dui_only(leads, sb) -> list:
             row = {
                 "case_number": lead.case_number,
                 "county": "yavapai",
-                "source": lead.source_id,
+                "source": lead.source,
                 "found": info.found,
                 "is_dui": info.is_dui,
                 "charges": json.dumps(info.charges),
