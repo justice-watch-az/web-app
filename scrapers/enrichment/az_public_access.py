@@ -116,6 +116,19 @@ class AZPublicAccessClient:
     COURT_NAME = "ctl00$ContentPlaceHolder1$ddlCourtByName"
     BTN_NAME = "ctl00$ContentPlaceHolder1$btnGoName"
 
+    def _get_search_form(self):
+        """GET the lookup page; if the captcha gate re-locked (per-solve search
+        cap), re-unlock. Returns BeautifulSoup of the search form or None."""
+        for _ in range(2):
+            r = self.session.get(LOOKUP_URL, timeout=30)
+            soup = BeautifulSoup(r.text, "html.parser")
+            if soup.find("input", {"name": self.CNUM1}) is not None:
+                return soup
+            self._unlocked = False
+            if not self.unlock():
+                return None
+        return None
+
     @staticmethod
     def _split_candidates(case_number: str) -> list:
         """AZ Public Access splits the case number into two boxes. J1303CM2026000242
@@ -148,9 +161,8 @@ class AZPublicAccessClient:
             return result
         try:
             for cnum1, cnum2 in self._split_candidates(case_number):
-                r = self.session.get(LOOKUP_URL, timeout=30)
-                soup = BeautifulSoup(r.text, "html.parser")
-                if soup.find("input", {"name": self.CNUM1}) is None:
+                soup = self._get_search_form()
+                if soup is None:
                     result.error = "search form not found (gate re-locked?)"
                     return result
                 data = _viewstate_fields(soup)
@@ -182,8 +194,10 @@ class AZPublicAccessClient:
             result.error = "captcha gate not unlocked"
             return result
         try:
-            r = self.session.get(LOOKUP_URL, timeout=30)
-            soup = BeautifulSoup(r.text, "html.parser")
+            soup = self._get_search_form()
+            if soup is None:
+                result.error = "search form not found (gate re-locked?)"
+                return result
             data = _viewstate_fields(soup)
             for inp in soup.find_all("input", {"type": "hidden"}):
                 nm = inp.get("name")

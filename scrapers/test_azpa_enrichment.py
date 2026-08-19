@@ -36,6 +36,7 @@ def main():
 
     # Debug: dump the post-gate form structure
     from bs4 import BeautifulSoup
+    BS = BeautifulSoup
     r = client.session.get(client.__init__.__globals__["LOOKUP_URL"], timeout=30)
     soup = BeautifulSoup(r.text, "html.parser")
     print("=== POST-GATE FORM ===")
@@ -46,7 +47,26 @@ def main():
                   "| type:", el.get("type"), "| value:", (el.get("value") or "")[:40])
         for sel in form.find_all("select"):
             opts = [(o.get("value"), o.get_text(strip=True)[:40]) for o in sel.find_all("option")]
-            print("   OPTIONS", sel.get("name"), opts[:25])
+            if "Court" in (sel.get("name") or ""):
+                prescott = [o for o in opts if "prescott" in o[1].lower() or "verde" in o[1].lower() or "mayer" in o[1].lower() or "bagdad" in o[1].lower() or "seligman" in o[1].lower()]
+                print("   YAVAPAI OPTIONS", sel.get("name"), prescott)
+            else:
+                print("   OPTIONS", sel.get("name"), opts[:25])
+
+    # Name-search sanity test with a known defendant from today's calendar
+    first = sample[0]
+    print("=== NAME SEARCH TEST ===")
+    parts = first.party_name.split(",")
+    lname = parts[0].strip()
+    fname = parts[1].strip().split()[0] if len(parts) > 1 else ""
+    print("searching:", lname, "/", fname, "case:", first.case_number)
+    nres = client.lookup_by_name(lname, fname)
+    print("name result:", json.dumps({"found": nres.found, "is_dui": nres.is_dui,
+                                    "charges": nres.charges, "error": nres.error}))
+    if hasattr(client, "last_html"):
+        t = BS(client.last_html, "html.parser").get_text(" ", strip=True)
+        print("=== NAME RESULT PAGE (first 1200 chars) ===")
+        print(t[:1200])
 
     results = []
     for i, lead in enumerate(sample):
