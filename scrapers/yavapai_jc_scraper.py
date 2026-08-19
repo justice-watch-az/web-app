@@ -44,7 +44,7 @@ def _enrich_dui_only(leads, sb) -> list:
     try:
         res = (
             sb.table("charge_enrichment")
-            .select("case_number,is_dui,found")
+            .select("case_number,is_dui,found,charges")
             .in_("case_number", case_numbers)
             .execute()
         )
@@ -84,6 +84,21 @@ def _enrich_dui_only(leads, sb) -> list:
             )
     dui = [l for l in leads if cached.get(l.case_number, {}).get("is_dui")]
     logger.info("DUI-only filter: %d/%d leads confirmed DUI", len(dui), len(leads))
+    # Attach confirmed charges to the case row so the UI can display them
+    # (modal renders raw_data.ars_codes as the charges fallback section).
+    for lead in dui:
+        row = cached.get(lead.case_number, {})
+        try:
+            charges = json.loads(row.get("charges") or "[]")
+        except Exception:
+            charges = []
+        descs = [
+            c.get("description") or c.get("code")
+            for c in charges if c.get("description") or c.get("code")
+        ]
+        if descs:
+            lead.raw_data = {**(lead.raw_data or {}), "ars_codes": descs}
+            lead.charges_raw = "; ".join(descs)
     return dui
 
 

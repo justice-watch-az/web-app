@@ -81,12 +81,19 @@ function CasesDashboardV3() {
       // Pima public case lookup (human-facing; has captcha) — prefill impossible, land on search
       return 'https://www.jp.pima.gov/CaseSearch/';
     }
+    if (caseItem.county === 'yavapai') {
+      // AZ Public Access (statewide; captcha search — no direct case URLs)
+      return 'https://apps.azcourts.gov/publicaccess/caselookup.aspx';
+    }
     // Maricopa default (deep link per case number)
     return `https://justicecourts.maricopa.gov/app/courtrecords/CaseInfo?casenumber=${caseItem.case_number}`;
   };
   const getCaseHistoryNote = (caseItem: CaseWithRelations): string => {
     if (caseItem.county === 'pima') {
       return 'Pima County does not publish direct case pages — their lookup requires a captcha search. Copy the case # below and paste it into their search.';
+    }
+    if (caseItem.county === 'yavapai') {
+      return 'Yavapai cases are in the statewide Arizona Public Access lookup — it requires a captcha search. Copy the case # below and search by name or case number.';
     }
     return 'Opens official Maricopa County court records in a new tab';
   };
@@ -517,7 +524,7 @@ function CasesDashboardV3() {
               <p className="case-history-note">
                 {getCaseHistoryNote(selectedCase)}
               </p>
-              {selectedCase.county === 'pima' && (
+              {(selectedCase.county === 'pima' || selectedCase.county === 'yavapai') && (
                 <button
                   className="copy-case-number-btn"
                   onClick={() => {

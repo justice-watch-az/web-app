@@ -10,7 +10,7 @@ function App() {
     <Router>
       <div className="app-container">
         <nav className="app-nav">
-          <h1>Justice Watch v3.4</h1>
+          <h1>Justice Watch v3.4.1</h1>
           <div className="nav-links">
             <NavLink to="/cases" className={({ isActive }) => (isActive ? 'active' : undefined)}>
               Cases
