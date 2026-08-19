@@ -125,7 +125,13 @@ def run() -> dict:
                         verdict = True
                         break
                     if info.found:
-                        verdict = False  # has Yavapai cases, none DUI so far
+                        # Only a RECENT case counts as evidence against DUI —
+                        # an old non-DUI case doesn't prove the new booking
+                        # isn't DUI (AZPA lags; the new case may not be indexed
+                        # yet). Old-only evidence => stay NULL, retry next run.
+                        yr = re.search(r"-((?:19|20)\d{2})-", case_label)
+                        if yr and int(yr.group(1)) >= 2025:
+                            verdict = False
         except Exception as e:
             stats["errors"] += 1
             logger.error("lookup failed for %s %s: %s", lname, fname, e)
