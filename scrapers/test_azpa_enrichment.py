@@ -49,7 +49,7 @@ def main():
             print("   OPTIONS", sel.get("name"), opts[:25])
 
     results = []
-    for lead in sample:
+    for i, lead in enumerate(sample):
         info = client.lookup_case(lead.case_number)
         results.append({
             "case_number": info.case_number,
@@ -59,6 +59,13 @@ def main():
             "error": info.error,
         })
         print(json.dumps(results[-1]))
+        if i == 0 and hasattr(client, "last_html"):
+            from bs4 import BeautifulSoup as BS
+            t = BS(client.last_html, "html.parser").get_text(" ", strip=True)
+            print("=== FIRST LOOKUP RESULT PAGE (first 1500 chars) ===")
+            print(t[:1500])
+            for a in BS(client.last_html, "html.parser").find_all("a", href=True)[:15]:
+                print("  LINK:", a.get_text(strip=True)[:40], "->", a["href"][:120])
     print(json.dumps({"unlocked": True, "lookups": len(results),
                       "found": sum(1 for r in results if r["found"]),
                       "dui": sum(1 for r in results if r["is_dui"])}, indent=2))

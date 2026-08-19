@@ -107,6 +107,39 @@ class AZPublicAccessClient:
         return False
 
     # -- case lookup -------------------------------------------------------
+    CNUM1 = "ctl00$ContentPlaceHolder1$txtCNum1"
+    CNUM2 = "ctl00$ContentPlaceHolder1$txtCNum2"
+    COURT_NUM = "ctl00$ContentPlaceHolder1$ddlCourtByNum"
+    BTN_NUM = "ctl00$ContentPlaceHolder1$btnGoNum"
+    LNAME = "ctl00$ContentPlaceHolder1$txtLName"
+    FNAME = "ctl00$ContentPlaceHolder1$txtFName"
+    COURT_NAME = "ctl00$ContentPlaceHolder1$ddlCourtByName"
+    BTN_NAME = "ctl00$ContentPlaceHolder1$btnGoName"
+
+    @staticmethod
+    def _split_candidates(case_number: str) -> list:
+        """AZ Public Access splits the case number into two boxes. J1303CM2026000242
+        could be (J1303CM, 2026000242) or (J1303, CM2026000242) etc. Try all
+        plausible splits; the first that returns a record wins."""
+        m = re.match(r"^([A-Z])(\d{4})([A-Z]{2})(\d+)$", case_number)
+        if not m:
+            return [(case_number, "")]
+        letter, court, ctype, seq = m.groups()
+        return [
+            (f"{letter}{court}{ctype}", seq),
+            (f"{letter}{court}", f"{ctype}{seq}"),
+            (case_number, ""),
+        ]
+
+    def _court_value(self, soup: BeautifulSoup, select_name: str, want: str = "Prescott") -> str:
+        sel = soup.find("select", {"name": select_name})
+        if not sel:
+            return "0"
+        for opt in sel.find_all("option"):
+            if want.lower() in opt.get_text(strip=True).lower() and "justice" in opt.get_text(strip=True).lower():
+                return opt.get("value", "0")
+        return "0"
+
     def lookup_case(self, case_number: str) -> CaseCharges:
         """Fetch charges for one case number. Caller must unlock() first."""
         result = CaseCharges(case_number=case_number)
@@ -114,26 +147,55 @@ class AZPublicAccessClient:
             result.error = "captcha gate not unlocked"
             return result
         try:
+            for cnum1, cnum2 in self._split_candidates(case_number):
+                r = self.session.get(LOOKUP_URL, timeout=30)
+                soup = BeautifulSoup(r.text, "html.parser")
+                if soup.find("input", {"name": self.CNUM1}) is None:
+                    result.error = "search form not found (gate re-locked?)"
+                    return result
+                data = _viewstate_fields(soup)
+                # Preserve any non-viewstate hidden inputs
+                for inp in soup.find_all("input", {"type": "hidden"}):
+                    nm = inp.get("name")
+                    if nm and not nm.startswith("__") and nm not in data:
+                        data[nm] = inp.get("value", "")
+                data[self.CNUM1] = cnum1
+                data[self.CNUM2] = cnum2
+                data[self.COURT_NUM] = self._court_value(soup, self.COURT_NUM)
+                data[self.BTN_NUM] = "Search"
+                r2 = self.session.post(LOOKUP_URL, data=data, timeout=30)
+                self.last_html = r2.text  # debug aid
+                self._parse_result(r2.text, result)
+                if result.found:
+                    return result
+                result.error = None  # reset between split attempts
+            if not result.found:
+                result.error = "no record for any split"
+        except Exception as e:  # noqa: BLE001 — enrichment must never crash a scrape run
+            result.error = f"{type(e).__name__}: {e}"
+        return result
+
+    def lookup_by_name(self, last_name: str, first_name: str = "") -> CaseCharges:
+        """Name-based lookup (for YCSO roster enrichment — no case number yet)."""
+        result = CaseCharges(case_number="")
+        if not self._unlocked and not self.unlock():
+            result.error = "captcha gate not unlocked"
+            return result
+        try:
             r = self.session.get(LOOKUP_URL, timeout=30)
             soup = BeautifulSoup(r.text, "html.parser")
             data = _viewstate_fields(soup)
-            # Case-number search fields (ASP.NET naming; resolved dynamically
-            # so minor page edits don't break us).
-            filled = False
-            for inp in soup.find_all("input"):
-                nm = inp.get("name") or ""
-                if re.search(r"(case.*number|txtcase)", nm, re.I) and inp.get("type", "text") == "text":
-                    data[nm] = case_number
-                    filled = True
-            if not filled:
-                result.error = "case-number input not found"
-                return result
-            btn = soup.find("input", {"type": "submit", "value": re.compile(r"search|submit|find", re.I)})
-            if btn and btn.get("name"):
-                data[btn["name"]] = btn.get("value", "Search")
+            for inp in soup.find_all("input", {"type": "hidden"}):
+                nm = inp.get("name")
+                if nm and not nm.startswith("__") and nm not in data:
+                    data[nm] = inp.get("value", "")
+            data[self.LNAME] = last_name
+            data[self.FNAME] = first_name
+            data[self.COURT_NAME] = self._court_value(soup, self.COURT_NAME)
+            data[self.BTN_NAME] = "Search"
             r2 = self.session.post(LOOKUP_URL, data=data, timeout=30)
             self._parse_result(r2.text, result)
-        except Exception as e:  # noqa: BLE001 — enrichment must never crash a scrape run
+        except Exception as e:  # noqa: BLE001
             result.error = f"{type(e).__name__}: {e}"
         return result
 
