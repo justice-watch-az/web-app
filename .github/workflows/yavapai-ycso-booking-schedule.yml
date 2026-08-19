@@ -1,0 +1,27 @@
+# YCSO booking roster scrape — Yavapai county-wide lead capture.
+# Every 2 hours, offset 15 min from the MCSO wall run (:07).
+# Captures ALL current inmates (unclassified); DUI confirmation is the
+# separate enrichment pass. Requires ycso_bookings migration applied.
+name: Yavapai YCSO Booking Scrape
+
+on:
+  schedule:
+    - cron: "22 */2 * * *"
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r scrapers/requirements.txt
+      - name: Run YCSO booking scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: python scrapers/yavapai_ycso_booking_scraper.py
