@@ -157,8 +157,8 @@ const BookingsDashboard: React.FC = () => {
                     <div className="booking-badges">
                       {fresh && <span className="badge badge-new">NEW</span>}
                       {b.is_dui && <span className="badge badge-dui">DUI</span>}
-                      <span className="badge badge-source" title="Lead source">
-                        MCSO Booking
+                      <span className={`badge badge-source ${b.source === 'ycso_booking' ? 'badge-source-yavapai' : ''}`} title="Lead source">
+                        {b.source === 'ycso_booking' ? 'YCSO Booking' : 'MCSO Booking'}
                       </span>
                     </div>
                   </div>

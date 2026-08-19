@@ -20,7 +20,41 @@ export const getBookings = async (limit = 200): Promise<McsoBooking[]> => {
     throw error;
   }
 
-  return (data || []) as McsoBooking[];
+  const mcso = (data || []) as McsoBooking[];
+
+  // YCSO (Yavapai) confirmed-DUI bookings — RLS only exposes is_dui = true.
+  // Roster has no mugshots and no charges; DUI verdict comes from AZ Public
+  // Access enrichment, so charges_raw states the provenance.
+  const { data: ycsoData, error: ycsoError } = await supabase
+    .from('ycso_bookings')
+    .select('id, inmate_number, first_name, last_name, is_dui, source, first_seen_at, created_at')
+    .order('first_seen_at', { ascending: false })
+    .limit(limit);
+
+  if (ycsoError) {
+    // Table/policy may not exist yet in some environments — MCSO still works.
+    console.warn('ycso_bookings unavailable (ok pre-migration):', ycsoError);
+    return mcso;
+  }
+
+  const ycso = ((ycsoData || []) as Record<string, unknown>[]).map((r) => ({
+    id: r.id,
+    booking_number: r.inmate_number,
+    first_name: r.first_name,
+    last_name: r.last_name,
+    charges: [],
+    charges_raw: 'DUI — confirmed via AZ Public Access',
+    arresting_agency: 'Yavapai County Sheriff',
+    is_dui: true,
+    mugshot_b64: null,
+    source: r.source || 'ycso_booking',
+    first_seen_at: r.first_seen_at,
+    created_at: r.created_at,
+  })) as McsoBooking[];
+
+  return [...mcso, ...ycso].sort((a, b) =>
+    (b.first_seen_at || '').localeCompare(a.first_seen_at || '')
+  );
 };
 
 export const searchBookings = async (term: string): Promise<McsoBooking[]> => {

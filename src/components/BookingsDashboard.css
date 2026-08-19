@@ -273,6 +273,12 @@
   border-color: rgba(102, 126, 234, 0.4);
 }
 
+.badge-source-yavapai {
+  background: rgba(233, 216, 253, 0.16);
+  color: #e9d8fd;
+  border-color: rgba(163, 116, 219, 0.5);
+}
+
 .booking-meta {
   display: flex;
   flex-wrap: wrap;
