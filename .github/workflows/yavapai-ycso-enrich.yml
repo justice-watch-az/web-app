@@ -1,0 +1,26 @@
+# Roster→enrichment bridge: classify unclassified YCSO bookings as DUI or not
+# via AZ Public Access (2captcha). Weekdays after the Prescott JC run.
+name: Yavapai YCSO Enrichment
+
+on:
+  schedule:
+    - cron: "45 16 * * 1-5"  # 9:45 AM MST weekdays
+  workflow_dispatch:
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r scrapers/requirements.txt
+      - name: Run roster enrichment bridge
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          TWOCAPTCHA_API_KEY: ${{ secrets.TWOCAPTCHA_API_KEY }}
+        run: python scrapers/yavapai_ycso_enrich.py
