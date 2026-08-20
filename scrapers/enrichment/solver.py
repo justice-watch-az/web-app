@@ -35,20 +35,23 @@ class TwoCaptchaSolver(BaseSolver):
     IN_URL = "http://2captcha.com/in.php"
     RES_URL = "http://2captcha.com/res.php"
 
-    def __init__(self, api_key: str | None = None, poll_interval: int = 5, timeout: int = 120):
+    def __init__(self, api_key: str | None = None, poll_interval: int = 5, timeout: int = 120,
+                 case_sensitive: bool = False):
         self.api_key = api_key or os.environ.get("TWOCAPTCHA_API_KEY")
         if not self.api_key:
             raise SolverUnavailable("TWOCAPTCHA_API_KEY not set")
         self.poll_interval = poll_interval
         self.timeout = timeout
+        # regsense=1 tells 2captcha workers the answer is case-sensitive
+        # (JailTracker's 4-char code is; BotDetect on AZPA is not).
+        self.case_sensitive = case_sensitive
 
     def solve_image(self, png_bytes: bytes) -> str:
         b64 = base64.b64encode(png_bytes).decode()
-        r = requests.post(
-            self.IN_URL,
-            data={"key": self.api_key, "method": "base64", "body": b64, "json": 1},
-            timeout=30,
-        )
+        payload = {"key": self.api_key, "method": "base64", "body": b64, "json": 1}
+        if self.case_sensitive:
+            payload["regsense"] = 1
+        r = requests.post(self.IN_URL, data=payload, timeout=30)
         data = r.json()
         if data.get("status") != 1:
             raise RuntimeError(f"2captcha submit failed: {data}")
