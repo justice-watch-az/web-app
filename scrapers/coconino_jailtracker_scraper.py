@@ -122,7 +122,7 @@ def run(dry_run: bool = True, max_solve_attempts: int = 3) -> dict:
 
     from enrichment.solver import TwoCaptchaSolver, SolverUnavailable
     try:
-        solver = TwoCaptchaSolver()
+        solver = TwoCaptchaSolver(case_sensitive=True)  # JailTracker codes are case-sensitive
     except SolverUnavailable as e:
         logger.error("No captcha solver: %s", e)
         raise
