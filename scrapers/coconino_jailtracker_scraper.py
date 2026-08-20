@@ -17,17 +17,26 @@ Why this source (recon 2026-08-19, JWAZ-3):
   Because charges are present at scrape time, DUI classification happens
   inline — no separate AZPA enrichment pass like Yavapai needed.
 
-API flow (reverse-engineered from Roster_WASM.Client.dll + live browser
-inspection 2026-08-19):
+API flow (reverse-engineered from Roster_WASM.Client.dll IL + live
+browser verification 2026-08-19/20):
   1. GET  captcha/getnewcaptchaclient
-         -> {"captchaKey": ..., "captchaImage": "data:image/gif;base64,..."}
+         -> CaptchaForClient {"captchaKey": ..., "captchaImage": "data:..."}
   2. solve image (2captcha "normal captcha" — see enrichment/solver.py)
-  3. POST Captcha/validatecaptcha {"captchaKey", "captchaCode"}
-         -> {"captchaMatched": true, "captchaKey": <validated key>}
-  4. POST Offender/coconino_county_az  {"captchaForClient": <validated key>}
-         -> RosterModel JSON; roster rows in the "offenders" list.
-         (Plain GET on the same URL returns the SPA shell — the client
-         DLL's "offenderbucket" string is a route template, not the path.)
+  3. POST Captcha/validatecaptcha {"captchaKey": key, "userCode": code}
+         -> {"captchaMatched": true, "captchaKey": <rotated validated key>}
+         NOTE: the field is "userCode" (CaptchaForClient.UserCode), NOT
+         "captchaCode". Wrong field silently binds null -> always mismatch.
+         This bug, not solver quality, caused every early probe failure.
+  4. POST Offender/coconino_county_az with the CaptchaForClient body
+     (CaptchaKey = rotated key, UserCode = "") -> RosterModel JSON with
+     offenders[].
+
+KNOWN OUTAGE (verified 2026-08-20): step 4 currently returns 400/empty
+even from the site's OWN Blazor app in a real browser (its roster POST
+gets a 0-byte 400 and the app crashes). The JailTracker server is broken
+for everyone right now — our chain (steps 1-3) is proven good. The probe
+workflow doubles as a monitor: when JailTracker fixes their endpoint,
+the next dispatch returns the roster.
 
 Gate: one 4-char image captcha per session. Vision-model OCR failed 4/4
 in recon; 2captcha ("normal captcha", ~$2.99/1000) is the intended solver.
@@ -96,13 +105,21 @@ class JailTrackerClient:
 
     def validate_captcha(self, key: str, code: str) -> dict:
         r = self.http.post(f"{BASE}Captcha/validatecaptcha",
-                           json={"captchaKey": key, "captchaCode": code}, timeout=30)
+                           json={"captchaKey": key, "userCode": code}, timeout=30)
         r.raise_for_status()
         return r.json()
 
     def fetch_roster(self, validated_key: str) -> list:
+        # Mirrors Offenders.Load(): PostAsJsonAsync<CaptchaForClient> with the
+        # rotated validated key. During the 2026-08-20 upstream outage this
+        # returns 400 — surfaced as a clear error so probe runs distinguish
+        # "our captcha failed" from "their endpoint is down".
         r = self.http.post(f"{BASE}Offender/{self.agency}",
-                           json={"captchaForClient": validated_key}, timeout=60)
+                           json={"CaptchaKey": validated_key, "UserCode": ""}, timeout=60)
+        if r.status_code == 400 or not r.text.strip():
+            raise RuntimeError(
+                "roster endpoint 400/empty — matches the verified upstream "
+                "outage (site's own app gets the same). Retry later.")
         r.raise_for_status()
         ct = r.headers.get("Content-Type", "")
         if "json" not in ct:
