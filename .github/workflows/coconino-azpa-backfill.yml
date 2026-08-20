@@ -1,0 +1,42 @@
+name: Coconino AZPA Backfill
+
+on:
+  workflow_dispatch:
+    inputs:
+      year:
+        description: "Year to backfill (case-number prefix)"
+        required: true
+        default: "2026"
+      case_type:
+        description: "CT or CR"
+        required: true
+        default: "CT"
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        court_index: [0, 1, 2, 3, 4, 5, 6, 7]  # COCONINO_COURTS order
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r scrapers/requirements.txt
+      - name: Backfill court ${{ matrix.court_index }}
+        env:
+          TWOCAPTCHA_API_KEY: ${{ secrets.TWOCAPTCHA_API_KEY }}
+        run: |
+          cd scrapers
+          python3 coconino_azpa_cases.py \
+            --backfill-court ${{ matrix.court_index }} \
+            --case-type ${{ github.event.inputs.case_type }} \
+            --year ${{ github.event.inputs.year }} \
+            --out backfill_${{ matrix.court_index }}.jsonl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backfill-${{ matrix.court_index }}
+          path: scrapers/backfill_${{ matrix.court_index }}.jsonl
+          if-no-files-found: warn
