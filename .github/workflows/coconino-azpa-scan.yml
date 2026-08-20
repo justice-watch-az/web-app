@@ -1,0 +1,34 @@
+name: Coconino AZPA Case Scan
+
+on:
+  workflow_dispatch:
+    inputs:
+      probe:
+        description: "Probe mode (read-only bootstrap, no writes)"
+        required: false
+        default: "true"
+  schedule:
+    # Daily 10:30 AM MST (17:30 UTC) — after Yavapai enrich (9:45)
+    - cron: "30 17 * * *"
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r scrapers/requirements.txt
+      - name: Enumerate Coconino AZPA cases
+        env:
+          TWOCAPTCHA_API_KEY: ${{ secrets.TWOCAPTCHA_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          cd scrapers
+          if [ "${{ github.event.inputs.probe }}" = "true" ]; then
+            python3 coconino_azpa_cases.py --probe
+          else
+            python3 coconino_azpa_cases.py
+          fi
