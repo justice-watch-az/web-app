@@ -17,14 +17,17 @@ Why this source (recon 2026-08-19, JWAZ-3):
   Because charges are present at scrape time, DUI classification happens
   inline — no separate AZPA enrichment pass like Yavapai needed.
 
-API flow (reverse-engineered from Roster_WASM.Client.dll):
+API flow (reverse-engineered from Roster_WASM.Client.dll + live browser
+inspection 2026-08-19):
   1. GET  captcha/getnewcaptchaclient
          -> {"captchaKey": ..., "captchaImage": "data:image/gif;base64,..."}
   2. solve image (2captcha "normal captcha" — see enrichment/solver.py)
   3. POST Captcha/validatecaptcha {"captchaKey", "captchaCode"}
          -> {"captchaMatched": true, "captchaKey": <validated key>}
-  4. GET  Offender/coconino_county_az/offenderbucket/<validated key>
-         -> roster JSON
+  4. POST Offender/coconino_county_az  {"captchaForClient": <validated key>}
+         -> RosterModel JSON; roster rows in the "offenders" list.
+         (Plain GET on the same URL returns the SPA shell — the client
+         DLL's "offenderbucket" string is a route template, not the path.)
 
 Gate: one 4-char image captcha per session. Vision-model OCR failed 4/4
 in recon; 2captcha ("normal captcha", ~$2.99/1000) is the intended solver.
@@ -98,17 +101,17 @@ class JailTrackerClient:
         return r.json()
 
     def fetch_roster(self, validated_key: str) -> list:
-        r = self.http.get(f"{BASE}Offender/{self.agency}/offenderbucket/{validated_key}",
-                          timeout=60)
+        r = self.http.post(f"{BASE}Offender/{self.agency}",
+                           json={"captchaForClient": validated_key}, timeout=60)
         r.raise_for_status()
         ct = r.headers.get("Content-Type", "")
         if "json" not in ct:
             raise RuntimeError(f"roster endpoint returned non-JSON ({ct}) — "
                                "captcha key likely rejected or endpoint moved")
         data = r.json()
-        if isinstance(data, dict):
-            return data.get("offenders") or data.get("Offenders") or []
-        return data
+        if data.get("errorMessage"):
+            raise RuntimeError(f"roster error: {data['errorMessage']}")
+        return data.get("offenders") or []
 
 
 def run(dry_run: bool = True, max_solve_attempts: int = 3) -> dict:
