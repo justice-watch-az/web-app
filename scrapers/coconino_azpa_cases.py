@@ -203,6 +203,57 @@ def bootstrap_max(client, court: dict, ctype: str, year: int) -> int | None:
     return lo
 
 
+def backfill(court: dict, ctype: str, year: int, out_path: str,
+             seq_start: int = 1, seq_end: int | None = None) -> dict:
+    """Walk seq space from the year start up to the current max, fetching each
+    case detail and writing DUI hits (plus a per-court summary) as JSONL.
+    Read-only against AZPA; no Supabase needed — load the JSONL after the
+    azpa_cases migration lands."""
+    from enrichment.az_public_access import AZPublicAccessClient
+    stats = {"court": court["name"], "type": ctype, "probed": 0, "found": 0,
+             "dui": 0, "errors": 0}
+    client = AZPublicAccessClient()
+    if not client.unlock():
+        raise RuntimeError("AZPA captcha gate could not be unlocked")
+    if seq_end is None:
+        seq_end = bootstrap_max(client, court, ctype, year)
+        if seq_end is None:
+            logger.info("backfill %s %s %d: no cases", court["name"], ctype, year)
+            return stats
+        logger.info("backfill %s %s %d: max=%d", court["name"], ctype, year, seq_end)
+    base = year * 1000000
+    with open(out_path, "a") as f:
+        for n in range(base + seq_start, seq_end + 1):
+            stats["probed"] += 1
+            try:
+                hit = probe_number(client, court, ctype, n)
+            except Exception as e:
+                stats["errors"] += 1
+                logger.error("backfill %s %d failed: %s", court["name"], n, e)
+                time.sleep(1.0)
+                continue
+            time.sleep(REQUEST_PAUSE)
+            if hit is None:
+                continue
+            case_number, detail = hit
+            stats["found"] += 1
+            if not is_dui_detail(detail):
+                continue
+            stats["dui"] += 1
+            rec = {"case_number": case_number, "county": "coconino",
+                   "court": court["name"], "case_type": ctype,
+                   "defendant": detail.get("defendant"), "dob": detail.get("dob"),
+                   "filing_date": detail.get("filing_date"),
+                   "charges": detail["charges"],
+                   "is_dui": True, "has_counsel": detail.get("has_counsel")}
+            f.write(json.dumps(rec) + "\n")
+            f.flush()
+            logger.info("DUI %s: %s (counsel=%s)", case_number,
+                        detail.get("defendant"), detail.get("has_counsel"))
+    logger.info("BACKFILL DONE %s %s: %s", court["name"], ctype, stats)
+    return stats
+
+
 def run(probe: bool = True, max_new_per_court: int = 200) -> dict:
     from enrichment.az_public_access import AZPublicAccessClient
     stats = {"courts": 0, "probed": 0, "found": 0, "dui": 0, "errors": 0}
@@ -295,5 +346,17 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--probe", action="store_true",
                     help="read-only: bootstrap watermarks, print, no writes")
+    ap.add_argument("--backfill-court", type=int, default=None,
+                    help="index into COCONINO_COURTS; run DUI backfill for that court")
+    ap.add_argument("--case-type", default="CT")
+    ap.add_argument("--year", type=int, default=CURRENT_YEAR)
+    ap.add_argument("--out", default="/tmp/azpa_backfill.jsonl")
+    ap.add_argument("--seq-end", type=int, default=None,
+                    help="skip bootstrap; scan up to this absolute seq")
     args = ap.parse_args()
-    print(json.dumps(run(probe=args.probe), indent=2))
+    if args.backfill_court is not None:
+        court = COCONINO_COURTS[args.backfill_court]
+        print(json.dumps(backfill(court, args.case_type, args.year, args.out,
+                                  seq_end=args.seq_end), indent=2))
+    else:
+        print(json.dumps(run(probe=args.probe), indent=2))
