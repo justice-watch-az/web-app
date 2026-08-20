@@ -54,7 +54,7 @@ COCONINO_COURTS = [
     {"value": "9", "name": "Williams Municipal",  "prefix": "M-0302"},
     {"value": "4", "name": "Fredonia Municipal",  "prefix": "M-0304"},
 ]
-CASE_TYPES = ["CT", "CR"]  # criminal traffic (DUI home) + criminal
+CASE_TYPES = ["CM", "CT", "TR", "CR"]  # CM=criminal misd, CT=civil traffic, TR=criminal traffic, CR=criminal
 CURRENT_YEAR = datetime.now().year
 
 # Counsel heuristics from docket events (no attorney field exists on AZPA).
@@ -127,9 +127,20 @@ def parse_detail(html: str) -> dict:
 
 
 def is_dui_detail(detail: dict) -> bool:
+    """DUI detection on the FULL page text, not just charge descriptions.
+    Coconino charge text doesn't always include 'DUI' or '28-1381' in the
+    gvCounts grid — the ARS code or DUI language may appear in the case
+    title, events, or other page elements. Mirror the proven Yavapai
+    approach: search the whole text blob."""
     from enrichment.az_public_access import DUI_ARS_RE, DUI_WORD_RE
-    for c in detail["charges"]:
-        if DUI_ARS_RE.search(c.get("description", "")) or DUI_WORD_RE.search(c.get("description", "")):
+    # check charges first (fast path)
+    for c in detail.get("charges", []):
+        blob = c.get("description", "") + " " + c.get("code", "")
+        if DUI_ARS_RE.search(blob) or DUI_WORD_RE.search(blob):
+            return True
+    # fall back to events + any other text we captured
+    for e in detail.get("events", []):
+        if DUI_ARS_RE.search(e.get("description", "")) or DUI_WORD_RE.search(e.get("description", "")):
             return True
     return False
 
