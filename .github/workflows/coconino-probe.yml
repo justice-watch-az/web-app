@@ -1,0 +1,22 @@
+# One-shot probe: validate the Coconino JailTracker chain end-to-end
+# (captcha fetch -> 2captcha solve -> validate -> roster JSON) before we
+# commit to a ccso_bookings migration. Manual dispatch only.
+name: Coconino JailTracker Probe
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r scrapers/requirements.txt
+      - name: Dry-run JailTracker roster fetch
+        env:
+          TWOCAPTCHA_API_KEY: ${{ secrets.TWOCAPTCHA_API_KEY }}
+        run: python scrapers/coconino_jailtracker_scraper.py --dry-run
