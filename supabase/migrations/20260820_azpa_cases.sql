@@ -30,8 +30,11 @@ CREATE TABLE IF NOT EXISTS azpa_cases (
 ALTER TABLE azpa_cases ENABLE ROW LEVEL SECURITY;
 ALTER TABLE azpa_enum_state ENABLE ROW LEVEL SECURITY;
 
--- Public read of CONFIRMED-DUI, apparently-unrepresented Coconino cases only
--- (DUI-only rule; counsel=NULL treated as potentially unrepresented).
+-- Public read of CONFIRMED-DUI cases only — matches the Maricopa/Yavapai
+-- pattern (mcso_bookings / ycso_bookings_public_read_dui: gate is is_dui = true).
+-- Recency is handled at query time (ORDER BY filing_date DESC, LIMIT) the same
+-- way the bookings wall orders by first_seen_at DESC — no date predicate here.
+-- has_counsel is kept as lead-qualification data on the row, not a gate.
 DROP POLICY IF EXISTS "azpa_cases_public_read_dui" ON azpa_cases;
 CREATE POLICY "azpa_cases_public_read_dui"
-    ON azpa_cases FOR SELECT USING (is_dui = true AND has_counsel IS NOT TRUE);
+    ON azpa_cases FOR SELECT USING (is_dui = true);
