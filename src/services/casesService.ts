@@ -4,9 +4,17 @@ import type {
   CaseSummary, 
   Statistics 
 } from '../types/database';
+import {
+  excludeHiddenCounties,
+  isHiddenCounty,
+  VISIBLE_COUNTY_OR_FILTER,
+} from '../utils/counties';
 
 /**
  * Cases Service - Handles all case-related data operations
+ *
+ * Pima is intentionally hidden from the front end (client request).
+ * Scrapers may still write pima rows; queries below exclude them.
  */
 
 // Get cases with related data
@@ -22,6 +30,7 @@ export const getCases = async (
       case_charges (*),
       case_calendar (*)
     `)
+    .or(VISIBLE_COUNTY_OR_FILTER)
     .order('scraped_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -30,7 +39,7 @@ export const getCases = async (
     throw error;
   }
 
-  return data || [];
+  return excludeHiddenCounties(data || []);
 };
 
 // Search cases by various criteria
@@ -45,6 +54,7 @@ export const searchCases = async (
       case_charges (*),
       case_calendar (*)
     `)
+    .or(VISIBLE_COUNTY_OR_FILTER)
     .or(`
       case_number.ilike.%${searchTerm}%,
       case_title.ilike.%${searchTerm}%,
@@ -59,7 +69,7 @@ export const searchCases = async (
     throw error;
   }
 
-  return data || [];
+  return excludeHiddenCounties(data || []);
 };
 
 // Get cases by court
@@ -75,6 +85,7 @@ export const getCasesByCourt = async (
       case_calendar (*)
     `)
     .eq('court_name', courtName)
+    .or(VISIBLE_COUNTY_OR_FILTER)
     .order('next_hearing', { ascending: true });
 
   if (error) {
@@ -82,7 +93,7 @@ export const getCasesByCourt = async (
     throw error;
   }
 
-  return data || [];
+  return excludeHiddenCounties(data || []);
 };
 
 // Get cases with upcoming hearings
@@ -100,6 +111,7 @@ export const getUpcomingHearings = async (
       case_charges (*),
       case_calendar (*)
     `)
+    .or(VISIBLE_COUNTY_OR_FILTER)
     .gte('next_hearing', new Date().toISOString())
     .lte('next_hearing', futureDate.toISOString())
     .order('next_hearing', { ascending: true });
@@ -109,25 +121,28 @@ export const getUpcomingHearings = async (
     throw error;
   }
 
-  return data || [];
+  return excludeHiddenCounties(data || []);
 };
 
-// Get statistics for dashboard
+// Get statistics for dashboard (excludes hidden front-end counties e.g. Pima)
 export const getStatistics = async (): Promise<Statistics> => {
   try {
     // Get total cases count
     const { count: totalCases } = await supabase
       .from('cases')
-      .select('*', { count: 'exact', head: true });
+      .select('*', { count: 'exact', head: true })
+      .or(VISIBLE_COUNTY_OR_FILTER);
 
     // Get cases by court
     const { data: courtData } = await supabase
       .from('cases')
-      .select('court_name')
+      .select('court_name, county')
+      .or(VISIBLE_COUNTY_OR_FILTER)
       .not('court_name', 'is', null);
 
     const casesByCourt: Record<string, number> = {};
     courtData?.forEach(row => {
+      if (isHiddenCounty(row.county)) return;
       const court = row.court_name || 'Unknown';
       casesByCourt[court] = (casesByCourt[court] || 0) + 1;
     });
@@ -135,11 +150,13 @@ export const getStatistics = async (): Promise<Statistics> => {
     // Get cases by type
     const { data: typeData } = await supabase
       .from('cases')
-      .select('case_type')
+      .select('case_type, county')
+      .or(VISIBLE_COUNTY_OR_FILTER)
       .not('case_type', 'is', null);
 
     const casesByType: Record<string, number> = {};
     typeData?.forEach(row => {
+      if (isHiddenCounty(row.county)) return;
       const type = row.case_type || 'Unknown';
       casesByType[type] = (casesByType[type] || 0) + 1;
     });
@@ -191,12 +208,14 @@ export const getStatistics = async (): Promise<Statistics> => {
     const { count: recentCases } = await supabase
       .from('cases')
       .select('*', { count: 'exact', head: true })
+      .or(VISIBLE_COUNTY_OR_FILTER)
       .gte('scraped_at', sevenDaysAgo.toISOString());
 
     // Get upcoming hearings count
     const { count: upcomingHearings } = await supabase
       .from('cases')
       .select('*', { count: 'exact', head: true })
+      .or(VISIBLE_COUNTY_OR_FILTER)
       .gte('next_hearing', new Date().toISOString());
 
     return {

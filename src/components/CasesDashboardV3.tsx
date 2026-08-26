@@ -41,6 +41,7 @@ import {
 } from '../utils/dataTransforms';
 import { isUpcomingCase } from '../utils/dateHelpers';
 import type { CaseWithRelations, Statistics } from '../types/database';
+import { isHiddenCounty } from '../utils/counties';
 
 // Import new real-time components
 import { realtimeService } from '../services/realtimeService';
@@ -114,6 +115,9 @@ function CasesDashboardV3() {
     unsubscribers.push(
       realtimeService.subscribeToTable('cases', {
         onInsert: (newCase) => {
+          // Hidden counties (e.g. Pima) stay out of the front end entirely
+          if (isHiddenCounty(newCase.county)) return;
+
           setCases(prev => {
             // Check if case already exists
             if (prev.find(c => c.id === newCase.id)) return prev;
@@ -137,6 +141,12 @@ function CasesDashboardV3() {
         },
         
         onUpdate: (updatedCase, oldCase) => {
+          // Drop hidden-county rows if they appear or become hidden
+          if (isHiddenCounty(updatedCase.county)) {
+            setCases(prev => prev.filter(c => c.id !== updatedCase.id));
+            return;
+          }
+
           setCases(prev => prev.map(c => 
             c.id === updatedCase.id ? { ...updatedCase, isUpdated: true } as CaseWithRelations : c
           ));
@@ -365,7 +375,8 @@ function CasesDashboardV3() {
   };
 
   const getFilteredCases = () => {
-    let filtered = [...cases];
+    // Belt-and-suspenders: never surface hidden front-end counties (Pima)
+    let filtered = cases.filter(c => !isHiddenCounty(c.county));
 
     // Filter by county
     if (selectedCounty) {
@@ -820,9 +831,12 @@ function CasesDashboardV3() {
     </div>
   );
     
-  const allCourts = [...new Set(cases.map(c => c.court_name).filter(Boolean))];
-  const allStatuses = [...new Set(cases.map(c => c.status).filter(Boolean))];
-  const allCounties = [...new Set(cases.map(c => c.county || 'maricopa'))].sort();
+  const visibleCases = cases.filter(c => !isHiddenCounty(c.county));
+  const allCourts = [...new Set(visibleCases.map(c => c.court_name).filter(Boolean))];
+  const allStatuses = [...new Set(visibleCases.map(c => c.status).filter(Boolean))];
+  const allCounties = [...new Set(visibleCases.map(c => c.county || 'maricopa'))]
+    .filter(c => !isHiddenCounty(c))
+    .sort();
 
   return (
     <div className="dashboard-container">
