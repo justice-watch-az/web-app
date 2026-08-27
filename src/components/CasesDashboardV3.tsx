@@ -39,7 +39,11 @@ import {
   sortCases,
   generateCSV
 } from '../utils/dataTransforms';
-import { isUpcomingCase } from '../utils/dateHelpers';
+import {
+  isUpcomingCase,
+  isScrapedWithinDays,
+  NEW_LEAD_LOOKBACK_DAYS,
+} from '../utils/dateHelpers';
 import type { CaseWithRelations, Statistics } from '../types/database';
 import { isHiddenCounty } from '../utils/counties';
 
@@ -66,7 +70,10 @@ function CasesDashboardV3() {
   const [selectedCase, setSelectedCase] = useState<CaseWithRelations | null>(null);
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showUpcomingOnly, setShowUpcomingOnly] = useState(true); // Default to true
+  // Default = last 7 days by scraped_at so same-day calendars (Yavapai) survive a weekly check.
+  // "Upcoming only" is optional and off by default (hearing day ≠ mail-queue window).
+  const [showNewThisWeek, setShowNewThisWeek] = useState(true);
+  const [showUpcomingOnly, setShowUpcomingOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCourts, setSelectedCourts] = useState<string[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<string[]>([]);
@@ -415,10 +422,16 @@ function CasesDashboardV3() {
       });
     }
     
-    // Show only upcoming cases if checkbox is checked
+    // Mail queue: cases first seen in the last N days (survives past hearing day)
+    if (showNewThisWeek) {
+      filtered = filtered.filter(c =>
+        isScrapedWithinDays(c.scraped_at, NEW_LEAD_LOOKBACK_DAYS)
+      );
+    }
+
+    // Optional: only hearings today-or-future
     if (showUpcomingOnly) {
       filtered = filtered.filter(c => {
-        // Use next_hearing date for filtering
         return isUpcomingCase(c.next_hearing);
       });
     }
@@ -430,16 +443,16 @@ function CasesDashboardV3() {
         const courtCompare = (a.court_name || '').localeCompare(b.court_name || '');
         if (courtCompare !== 0) return courtCompare;
         
-        // Then by date within each court
-        const dateA = new Date(a.next_hearing || a.filing_date || 0);
-        const dateB = new Date(b.next_hearing || b.filing_date || 0);
+        // Then by scrape recency within each court (mail-queue order)
+        const dateA = new Date(a.scraped_at || a.next_hearing || a.filing_date || 0);
+        const dateB = new Date(b.scraped_at || b.next_hearing || b.filing_date || 0);
         return dateB.getTime() - dateA.getTime();
       });
     } else {
-      // Default: sort by date (most recent first)
+      // Default: newest scraped first (so this week's Yavapai/Maricopa leads float up)
       filtered.sort((a, b) => {
-        const dateA = new Date(a.next_hearing || a.filing_date || 0);
-        const dateB = new Date(b.next_hearing || b.filing_date || 0);
+        const dateA = new Date(a.scraped_at || a.next_hearing || a.filing_date || 0);
+        const dateB = new Date(b.scraped_at || b.next_hearing || b.filing_date || 0);
         return dateB.getTime() - dateA.getTime();
       });
     }
@@ -957,13 +970,22 @@ function CasesDashboardV3() {
                 </select>
               </div>
               
-              <label className="checkbox-filter">
+              <label className="checkbox-filter" title="Cases first seen in the last 7 days (recommended for weekly mail runs)">
+                <input
+                  type="checkbox"
+                  checked={showNewThisWeek}
+                  onChange={(e) => setShowNewThisWeek(e.target.checked)}
+                />
+                New this week (7 days)
+              </label>
+
+              <label className="checkbox-filter" title="Only hearings dated today or later">
                 <input
                   type="checkbox"
                   checked={showUpcomingOnly}
                   onChange={(e) => setShowUpcomingOnly(e.target.checked)}
                 />
-                Show upcoming only
+                Upcoming hearings only
               </label>
             </div>
           </div>

@@ -1,0 +1,64 @@
+name: Weekly Lead Digest (Tiffany)
+
+on:
+  schedule:
+    # Mondays 8:00 AM Arizona (UTC-7 year-round)
+    - cron: '0 15 * * 1'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Print digest only (no email)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install python-dotenv
+        # digest script is stdlib-only (urllib); dotenv optional
+
+      - name: Run weekly lead digest
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          DIGEST_FROM: ${{ secrets.DIGEST_FROM }}
+          # Tiffany only — override via secret only if testing
+          DIGEST_TO: ${{ secrets.DIGEST_TO }}
+          DIGEST_LOOKBACK_DAYS: '7'
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          # Empty DIGEST_TO secret → script default tiffany@stevengeorgelaw.com
+          if [ -z "$DIGEST_TO" ]; then unset DIGEST_TO; fi
+          python scrapers/weekly_lead_digest.py
+
+      - name: Notify on failure
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Weekly lead digest failed: ${new Date().toLocaleDateString()}`,
+              body: `Check the [workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).\n\nUsually missing RESEND_API_KEY or DIGEST_FROM secrets.`,
+              labels: ['bug']
+            })
