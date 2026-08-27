@@ -1,6 +1,6 @@
 {
   "name": "justice-watch-web",
-  "version": "3.5.2",
+  "version": "3.5.3",
   "description": "Web-based court monitoring application for Maricopa County Justice Courts",
   "scripts": {
     "dev": "vite",

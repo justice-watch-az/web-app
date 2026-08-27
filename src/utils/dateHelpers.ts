@@ -35,6 +35,30 @@ export const isUpcomingCase = (caseDate: string | null | undefined): boolean => 
   }
 };
 
+/** Default mail-queue window (Tiffany weekly checkup). */
+export const NEW_LEAD_LOOKBACK_DAYS = 7;
+
+/**
+ * True if scraped_at falls within the last `days` (inclusive of partial today).
+ * Used so same-day calendars (Yavapai) stay visible for a weekly check.
+ */
+export const isScrapedWithinDays = (
+  scrapedAt: string | null | undefined,
+  days: number = NEW_LEAD_LOOKBACK_DAYS
+): boolean => {
+  if (!scrapedAt) return false;
+  try {
+    const scraped = new Date(scrapedAt);
+    if (isNaN(scraped.getTime())) return false;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    cutoff.setHours(0, 0, 0, 0);
+    return scraped >= cutoff;
+  } catch {
+    return false;
+  }
+};
+
 /**
  * Format a date for display (if not already exported from dataTransforms)
  */
